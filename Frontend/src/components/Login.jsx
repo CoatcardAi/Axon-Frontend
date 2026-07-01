@@ -147,7 +147,7 @@ export default function Login({ onLoginSuccess }) {
         {step === 'email' ? (
           <form onSubmit={handleEmailSubmit} style={styles.form}>
             <div style={styles.formTip}>
-              Enter your email address. If an account exists, we will send a login OTP. Otherwise you will be asked to sign up.
+              Enter your email address. We will check your account and send an OTP to continue.
             </div>
             <div style={styles.inputGroup}>
               <label style={styles.label}>Email</label>
