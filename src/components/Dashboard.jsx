@@ -7,7 +7,8 @@ import {
 const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
 
 export default function Dashboard({ token, username, roles, onLogout }) {
-  const [activeTab, setActiveTab] = useState('keys');
+  const isAdmin = roles.includes('ROLE_ADMIN');
+  const [activeTab, setActiveTab] = useState(isAdmin ? 'keys' : 'sandbox');
   const [healthData, setHealthData] = useState(null);
   const [keysList, setKeysList] = useState([]);
   const [modelsList, setModelsList] = useState([]);
@@ -38,83 +39,95 @@ export default function Dashboard({ token, username, roles, onLogout }) {
   const [sandboxResponse, setSandboxResponse] = useState(null);
   const [sandboxLoading, setSandboxLoading] = useState(false);
 
-  const isAdmin = roles.includes('ROLE_ADMIN');
+  // Authenticated fetch wrapper to automatically handle 401 token expirations
+  const fetchWithAuth = useCallback(async (url, options = {}) => {
+    const headers = {
+      ...options.headers,
+      'Authorization': `Bearer ${token}`
+    };
+    try {
+      const response = await fetch(url, { ...options, headers });
+      if (response.status === 401) {
+        onLogout();
+        return null;
+      }
+      return response;
+    } catch (err) {
+      console.error("Network error: ", err);
+      throw err;
+    }
+  }, [token, onLogout]);
 
   // Fetch health stats
   const fetchHealth = useCallback(async () => {
     try {
-      const response = await fetch(`${BASE_URL}/api/v1/admin/health`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (response.ok) {
+      const response = await fetchWithAuth(`${BASE_URL}/api/v1/admin/health`);
+      if (response && response.ok) {
         const data = await response.json();
         setHealthData(data);
       }
     } catch (err) {
       console.error("Error fetching health data", err);
     }
-  }, [token]);
+  }, [fetchWithAuth]);
 
   // Fetch keys
   const fetchKeys = useCallback(async () => {
     try {
-      const response = await fetch(`${BASE_URL}/api/v1/admin/keys`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (response.ok) {
+      const response = await fetchWithAuth(`${BASE_URL}/api/v1/admin/keys`);
+      if (response && response.ok) {
         const data = await response.json();
         setKeysList(data);
       }
     } catch (err) {
       console.error("Error fetching keys", err);
     }
-  }, [token]);
+  }, [fetchWithAuth]);
 
   // Fetch models
   const fetchModels = useCallback(async () => {
     try {
-      const response = await fetch(`${BASE_URL}/api/v1/admin/models`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (response.ok) {
+      const response = await fetchWithAuth(`${BASE_URL}/api/v1/admin/models`);
+      if (response && response.ok) {
         const data = await response.json();
         setModelsList(data);
       }
     } catch (err) {
       console.error("Error fetching models", err);
     }
-  }, [token]);
+  }, [fetchWithAuth]);
 
   // Fetch logs
   const fetchLogs = useCallback(async () => {
     try {
-      const response = await fetch(`${BASE_URL}/api/v1/admin/logs`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (response.ok) {
+      const response = await fetchWithAuth(`${BASE_URL}/api/v1/admin/logs`);
+      if (response && response.ok) {
         const data = await response.json();
         setLogsList(data);
       }
     } catch (err) {
       console.error("Error fetching logs", err);
     }
-  }, [token]);
+  }, [fetchWithAuth]);
 
   const loadData = useCallback(() => {
+    if (!isAdmin) return;
     setLoading(true);
     Promise.all([fetchHealth(), fetchKeys(), fetchModels(), fetchLogs()])
       .finally(() => setLoading(false));
-  }, [fetchHealth, fetchKeys, fetchModels, fetchLogs]);
+  }, [isAdmin, fetchHealth, fetchKeys, fetchModels, fetchLogs]);
 
   useEffect(() => {
-    loadData();
-    // Auto-refresh stats and logs every 10 seconds
-    const interval = setInterval(() => {
-      fetchHealth();
-      fetchLogs();
-    }, 10000);
-    return () => clearInterval(interval);
-  }, [loadData, fetchHealth, fetchLogs]);
+    if (isAdmin) {
+      loadData();
+      // Auto-refresh stats and logs every 10 seconds
+      const interval = setInterval(() => {
+        fetchHealth();
+        fetchLogs();
+      }, 10000);
+      return () => clearInterval(interval);
+    }
+  }, [isAdmin, loadData, fetchHealth, fetchLogs]);
 
   // Alert handler
   const triggerAlert = (type, msg) => {
@@ -141,15 +154,15 @@ export default function Dashboard({ token, username, roles, onLogout }) {
     };
 
     try {
-      const response = await fetch(url, {
+      const response = await fetchWithAuth(url, {
         method,
         headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify(payload)
       });
 
+      if (!response) return;
       if (!response.ok) throw new Error('Failed to save API key');
       
       triggerAlert('success', `Key successfully ${isEditingKey ? 'updated' : 'created'}!`);
@@ -185,10 +198,10 @@ export default function Dashboard({ token, username, roles, onLogout }) {
   const handleDeleteKey = async (id) => {
     if (!window.confirm("Are you sure you want to delete this key?")) return;
     try {
-      const response = await fetch(`${BASE_URL}/api/v1/admin/keys/${id}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` }
+      const response = await fetchWithAuth(`${BASE_URL}/api/v1/admin/keys/${id}`, {
+        method: 'DELETE'
       });
+      if (!response) return;
       if (!response.ok) throw new Error('Failed to delete key');
       triggerAlert('success', 'Key deleted.');
       loadData();
@@ -204,10 +217,10 @@ export default function Dashboard({ token, username, roles, onLogout }) {
     if (!duration) return;
 
     try {
-      const response = await fetch(`${BASE_URL}/api/v1/admin/keys/${id}/cooldown?reason=${encodeURIComponent(reason)}&durationSeconds=${duration}`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}` }
+      const response = await fetchWithAuth(`${BASE_URL}/api/v1/admin/keys/${id}/cooldown?reason=${encodeURIComponent(reason)}&durationSeconds=${duration}`, {
+        method: 'POST'
       });
+      if (!response) return;
       if (!response.ok) throw new Error('Failed to trigger cooldown');
       triggerAlert('success', 'Manual cooldown activated.');
       loadData();
@@ -218,10 +231,10 @@ export default function Dashboard({ token, username, roles, onLogout }) {
 
   const handleClearCooldown = async (id) => {
     try {
-      const response = await fetch(`${BASE_URL}/api/v1/admin/keys/${id}/cooldown`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` }
+      const response = await fetchWithAuth(`${BASE_URL}/api/v1/admin/keys/${id}/cooldown`, {
+        method: 'DELETE'
       });
+      if (!response) return;
       if (!response.ok) throw new Error('Failed to clear cooldown');
       triggerAlert('success', 'Cooldown cleared.');
       loadData();
@@ -239,15 +252,15 @@ export default function Dashboard({ token, username, roles, onLogout }) {
     const method = isEditingModel ? 'PUT' : 'POST';
 
     try {
-      const response = await fetch(url, {
+      const response = await fetchWithAuth(url, {
         method,
         headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify(modelForm)
       });
 
+      if (!response) return;
       if (!response.ok) throw new Error('Failed to save AI model');
       
       triggerAlert('success', `Model successfully ${isEditingModel ? 'updated' : 'created'}!`);
@@ -275,10 +288,10 @@ export default function Dashboard({ token, username, roles, onLogout }) {
   const handleDeleteModel = async (id) => {
     if (!window.confirm("Are you sure you want to delete this model?")) return;
     try {
-      const response = await fetch(`${BASE_URL}/api/v1/admin/models/${id}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` }
+      const response = await fetchWithAuth(`${BASE_URL}/api/v1/admin/models/${id}`, {
+        method: 'DELETE'
       });
+      if (!response) return;
       if (!response.ok) throw new Error('Failed to delete model');
       triggerAlert('success', 'Model deleted.');
       loadData();
@@ -293,14 +306,14 @@ export default function Dashboard({ token, username, roles, onLogout }) {
     setSandboxLoading(true);
     setSandboxResponse(null);
     try {
-      const response = await fetch(`${BASE_URL}/api/v1/proxy/chat`, {
+      const response = await fetchWithAuth(`${BASE_URL}/api/v1/proxy/chat`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify(sandboxForm)
       });
+      if (!response) return;
       const data = await response.json();
       if (!response.ok) throw new Error(data.message || 'Proxy execution failed.');
       setSandboxResponse(data);
@@ -331,9 +344,11 @@ export default function Dashboard({ token, username, roles, onLogout }) {
             Signed in as <strong>{username}</strong> <span style={styles.roleTag}>{roles[0]?.replace('ROLE_', '')}</span>
           </span>
           
-          <button onClick={loadData} className="btn btn-secondary" style={styles.iconBtn} title="Force Refresh">
-            <RefreshCw size={16} className={loading ? 'spin' : ''} />
-          </button>
+          {isAdmin && (
+            <button onClick={loadData} className="btn btn-secondary" style={styles.iconBtn} title="Force Refresh">
+              <RefreshCw size={16} className={loading ? 'spin' : ''} />
+            </button>
+          )}
           
           <button onClick={onLogout} className="btn btn-danger" style={styles.logoutBtn}>
             <LogOut size={16} />
@@ -347,7 +362,7 @@ export default function Dashboard({ token, username, roles, onLogout }) {
       {success && <div style={styles.successAlert}><Check size={16} /> {success}</div>}
 
       {/* System Health Metric Bar */}
-      {healthData && (
+      {isAdmin && healthData && (
         <section style={styles.metricsBar}>
           <div className="glass-container" style={styles.metricCard}>
             <div style={styles.metricIconBox}><Key size={20} color="#f8fafc" /></div>
@@ -384,29 +399,33 @@ export default function Dashboard({ token, username, roles, onLogout }) {
       <div style={styles.tabContentLayout}>
         {/* Navigation Sidebar */}
         <aside className="glass-container" style={styles.sidebar}>
-          <button 
-            onClick={() => setActiveTab('keys')}
-            style={activeTab === 'keys' ? styles.sidebarBtnActive : styles.sidebarBtn}
-          >
-            <Key size={18} />
-            <span>API Keys</span>
-          </button>
-          
-          <button 
-            onClick={() => setActiveTab('models')}
-            style={activeTab === 'models' ? styles.sidebarBtnActive : styles.sidebarBtn}
-          >
-            <Database size={18} />
-            <span>AI Models</span>
-          </button>
-          
-          <button 
-            onClick={() => setActiveTab('logs')}
-            style={activeTab === 'logs' ? styles.sidebarBtnActive : styles.sidebarBtn}
-          >
-            <FileText size={18} />
-            <span>Logs</span>
-          </button>
+          {isAdmin && (
+            <>
+              <button 
+                onClick={() => setActiveTab('keys')}
+                style={activeTab === 'keys' ? styles.sidebarBtnActive : styles.sidebarBtn}
+              >
+                <Key size={18} />
+                <span>API Keys</span>
+              </button>
+              
+              <button 
+                onClick={() => setActiveTab('models')}
+                style={activeTab === 'models' ? styles.sidebarBtnActive : styles.sidebarBtn}
+              >
+                <Database size={18} />
+                <span>AI Models</span>
+              </button>
+              
+              <button 
+                onClick={() => setActiveTab('logs')}
+                style={activeTab === 'logs' ? styles.sidebarBtnActive : styles.sidebarBtn}
+              >
+                <FileText size={18} />
+                <span>Logs</span>
+              </button>
+            </>
+          )}
           
           <button 
             onClick={() => setActiveTab('sandbox')}

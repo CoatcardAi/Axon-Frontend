@@ -6,12 +6,12 @@ export default function Login({ onLoginSuccess }) {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [otp, setOtp] = useState('');
-  
+
   const [step, setStep] = useState('email');
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  
+
   const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8080';
 
   const handleEmailSubmit = async (e) => {
@@ -128,10 +128,10 @@ export default function Login({ onLoginSuccess }) {
           <div style={styles.logoIcon}>
             <ShieldCheck size={28} color="#a855f7" />
           </div>
-          <h2 style={styles.title} className="glow-text">AXON PORTAL</h2>
+          <h2 style={styles.title} className="glow-text">AXON</h2>
           <p style={styles.subtitle}>AI Router & Scheduler Core</p>
         </div>
-        
+
         {error && (
           <div style={styles.errorAlert}>
             <span>{error}</span>
@@ -147,7 +147,7 @@ export default function Login({ onLoginSuccess }) {
         {step === 'email' ? (
           <form onSubmit={handleEmailSubmit} style={styles.form}>
             <div style={styles.formTip}>
-              Enter your email address. We will check your account and send an OTP to continue.
+
             </div>
             <div style={styles.inputGroup}>
               <label style={styles.label}>Email</label>
@@ -165,7 +165,7 @@ export default function Login({ onLoginSuccess }) {
                 />
               </div>
             </div>
-            
+
             <button type="submit" className="btn btn-primary" style={styles.submitBtn} disabled={loading}>
               {loading ? (
                 <>
@@ -261,7 +261,7 @@ export default function Login({ onLoginSuccess }) {
                 Enter the verification code sent to <strong>{username}</strong>.
               </p>
             </div>
-            
+
             <div style={styles.inputGroup}>
               <label style={styles.label}>Verification Code</label>
               <div style={styles.inputWrapper}>
@@ -279,7 +279,7 @@ export default function Login({ onLoginSuccess }) {
                 />
               </div>
             </div>
-            
+
             <button type="submit" className="btn btn-primary" style={styles.submitBtn} disabled={loading}>
               {loading ? (
                 <>
@@ -293,14 +293,14 @@ export default function Login({ onLoginSuccess }) {
                 </>
               )}
             </button>
-            
+
             <button type="button" className="btn btn-secondary" style={styles.backBtn} onClick={resetForm} disabled={loading}>
               Back to Email
             </button>
           </form>
         )}
       </div>
-      
+
       <style>{`
         @keyframes spin {
           0% { transform: rotate(0deg); }
