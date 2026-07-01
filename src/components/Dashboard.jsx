@@ -387,18 +387,18 @@ export default function Dashboard({ token, username, roles, onLogout }) {
       {/* Top Navbar */}
       <header className="glass-container" style={styles.header}>
         <div style={styles.headerLeft}>
-          <div style={styles.logoBadge}>
-            <Shield size={20} color="#a855f7" />
+          <div style={{...styles.logoBadge, background: isAdmin ? 'rgba(168, 85, 247, 0.08)' : 'rgba(59, 130, 246, 0.08)', borderColor: isAdmin ? 'rgba(168, 85, 247, 0.15)' : 'rgba(59, 130, 246, 0.15)'}}>
+            <Shield size={20} color={isAdmin ? "#a855f7" : "#3b82f6"} />
           </div>
           <div>
-            <h1 style={styles.headerTitle} className="glow-text">Axon Core</h1>
-            <p style={styles.headerSubtitle}>Scheduler Control Center</p>
+            <h1 style={styles.headerTitle} className="glow-text">{isAdmin ? "Axon Core" : "Axon DevPortal"}</h1>
+            <p style={styles.headerSubtitle}>{isAdmin ? "Gateway Control Center" : "Developer API & Sandbox"}</p>
           </div>
         </div>
         
         <div style={styles.headerRight}>
           <span style={styles.userInfo}>
-            Signed in as <strong>{username}</strong> <span style={styles.roleTag}>{roles[0]?.replace('ROLE_', '')}</span>
+            Signed in as <strong>{username}</strong> <span style={{...styles.roleTag, background: isAdmin ? 'rgba(168, 85, 247, 0.15)' : 'rgba(59, 130, 246, 0.15)', borderColor: isAdmin ? 'rgba(168, 85, 247, 0.25)' : 'rgba(59, 130, 246, 0.25)', color: isAdmin ? '#d8b4fe' : '#93c5fd'}}>{roles[0]?.replace('ROLE_', '')}</span>
           </span>
           
           {isAdmin && (
@@ -418,7 +418,7 @@ export default function Dashboard({ token, username, roles, onLogout }) {
       {error && <div style={styles.errorAlert}><ShieldAlert size={16} /> {error}</div>}
       {success && <div style={styles.successAlert}><Check size={16} /> {success}</div>}
 
-      {/* System Health Metric Bar */}
+      {/* System Health Metric Bar (Admin) */}
       {isAdmin && healthData && (
         <section style={styles.metricsBar}>
           <div className="glass-container" style={styles.metricCard}>
@@ -461,11 +461,51 @@ export default function Dashboard({ token, username, roles, onLogout }) {
         </section>
       )}
 
+      {/* Developer API Status Metric Bar (Client) */}
+      {!isAdmin && (
+        <section style={styles.metricsBar}>
+          <div className="glass-container" style={{...styles.metricCard, gridColumn: 'span 2'}}>
+            <div style={{...styles.metricIconBox, background: 'rgba(59, 130, 246, 0.1)'}}><Database size={20} color="#3b82f6" /></div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={styles.metricLabel}>API Gateway Endpoint</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
+                <code style={{ fontSize: '0.8rem', color: '#fff', background: 'rgba(0,0,0,0.25)', padding: '4px 8px', borderRadius: '4px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block', flex: 1 }}>
+                  {`${BASE_URL}/api/v1/proxy/chat`}
+                </code>
+                <button 
+                  type="button" 
+                  onClick={() => handleCopyToClipboard(`${BASE_URL}/api/v1/proxy/chat`, 'endpoint')}
+                  className="btn btn-secondary" 
+                  style={{ padding: '6px 10px', fontSize: '0.72rem', display: 'flex', alignItems: 'center', gap: '4px' }}
+                >
+                  {copiedId === 'endpoint' ? <Check size={12} color="#10b981" /> : <Copy size={12} />}
+                  <span>{copiedId === 'endpoint' ? 'Copied' : 'Copy'}</span>
+                </button>
+              </div>
+            </div>
+          </div>
+          <div className="glass-container" style={styles.metricCard}>
+            <div style={{...styles.metricIconBox, background: 'rgba(16, 185, 129, 0.1)'}}><Zap size={20} color="#10b981" /></div>
+            <div>
+              <div style={{...styles.metricVal, color: '#10b981'}}>ACTIVE</div>
+              <div style={styles.metricLabel}>API Gateway Status</div>
+            </div>
+          </div>
+          <div className="glass-container" style={styles.metricCard}>
+            <div style={{...styles.metricIconBox, background: 'rgba(245, 158, 11, 0.1)'}}><Flame size={20} color="#f59e0b" /></div>
+            <div>
+              <div style={{...styles.metricVal, color: '#f59e0b'}}>DEVELOPER</div>
+              <div style={styles.metricLabel}>Rate Limit Tier</div>
+            </div>
+          </div>
+        </section>
+      )}
+
       {/* Tabs Layout */}
       <div style={styles.tabContentLayout}>
         {/* Navigation Sidebar */}
         <aside className="glass-container" style={styles.sidebar}>
-          {isAdmin && (
+          {isAdmin ? (
             <>
               <button 
                 onClick={() => setActiveTab('keys')}
@@ -490,16 +530,34 @@ export default function Dashboard({ token, username, roles, onLogout }) {
                 <FileText size={18} />
                 <span>Logs</span>
               </button>
+
+              <button 
+                onClick={() => setActiveTab('sandbox')}
+                style={activeTab === 'sandbox' ? styles.sidebarBtnActive : styles.sidebarBtn}
+              >
+                <Play size={18} />
+                <span>Router Test</span>
+              </button>
+            </>
+          ) : (
+            <>
+              <button 
+                onClick={() => setActiveTab('sandbox')}
+                style={activeTab === 'sandbox' ? styles.sidebarBtnActive : styles.sidebarBtn}
+              >
+                <Play size={18} />
+                <span>Router Test</span>
+              </button>
+
+              <button 
+                onClick={() => setActiveTab('guide')}
+                style={activeTab === 'guide' ? styles.sidebarBtnActive : styles.sidebarBtn}
+              >
+                <FileText size={18} />
+                <span>Developer Guide</span>
+              </button>
             </>
           )}
-          
-          <button 
-            onClick={() => setActiveTab('sandbox')}
-            style={activeTab === 'sandbox' ? styles.sidebarBtnActive : styles.sidebarBtn}
-          >
-            <Play size={18} />
-            <span>Router Test</span>
-          </button>
         </aside>
 
         {/* Tab Panel */}
@@ -1059,6 +1117,140 @@ export default function Dashboard({ token, username, roles, onLogout }) {
                     </div>
                   )}
                 </div>
+              </div>
+            </div>
+          )}
+
+          {/* TAB 5: DEVELOPER GUIDE */}
+          {activeTab === 'guide' && (
+            <div className="animate-fade-in" style={{ textAlign: 'left' }}>
+              <div style={styles.tabHeader}>
+                <div>
+                  <h2 style={styles.tabTitle}>Developer API Guide</h2>
+                  <p style={styles.tabSubtitle}>Integrate Axon's smart scheduler directly into your AI agent or backend workflow.</p>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', color: '#e2e8f0', fontSize: '0.9rem', lineHeight: '1.6' }}>
+                
+                {/* Endpoint Section */}
+                <div className="glass-container" style={{ padding: '20px' }}>
+                  <h3 style={{ fontSize: '1.05rem', color: '#fff', fontWeight: '600', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <Info size={16} color="#3b82f6" /> Proxy Request Endpoint
+                  </h3>
+                  <p style={{ margin: '0 0 12px 0', fontSize: '0.88rem', color: '#94a3b8' }}>
+                    Send standard chat completion requests to the proxy router. Axon will check limits, handle cooldowns, pre-reserve rates, failover automatically if target keys throw errors, and return response text.
+                  </p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    <div>
+                      <strong>HTTP Method:</strong> <span style={{ background: 'rgba(59,130,246,0.1)', color: '#3b82f6', padding: '2px 8px', borderRadius: '4px', fontSize: '0.8rem', fontWeight: 'bold' }}>POST</span>
+                    </div>
+                    <div>
+                      <strong>Authorization Header:</strong> <code style={{ fontSize: '0.8rem', color: '#a855f7' }}>Authorization: Bearer &lt;YOUR_TOKEN&gt;</code>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Code Snippets Section */}
+                <div>
+                  <h3 style={{ fontSize: '1.05rem', color: '#fff', fontWeight: '600', marginBottom: '16px' }}>Code Integration Snippets</h3>
+                  
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '20px' }}>
+                    
+                    {/* cURL snippet */}
+                    <div className="glass-container" style={{ padding: '20px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                        <span style={{ fontWeight: '600', fontSize: '0.85rem', color: '#94a3b8' }}>cURL (Command Line)</span>
+                        <button 
+                          type="button"
+                          className="btn btn-secondary"
+                          style={{ padding: '3px 8px', fontSize: '0.72rem' }}
+                          onClick={() => handleCopyToClipboard(`curl -X POST "${BASE_URL}/api/v1/proxy/chat" \\\n  -H "Content-Type: application/json" \\\n  -H "Authorization: Bearer ${token}" \\\n  -d '{\n    "provider": "openai",\n    "model": "gpt-4o",\n    "prompt": "Hello",\n    "estimatedTokens": 100\n  }'`, 'curl')}
+                        >
+                          {copiedId === 'curl' ? <Check size={12} color="#10b981" /> : <Copy size={12} />} Copy
+                        </button>
+                      </div>
+                      <pre style={styles.responseTextPre}>
+{`curl -X POST "${BASE_URL}/api/v1/proxy/chat" \\
+  -H "Content-Type: application/json" \\
+  -H "Authorization: Bearer ${token.substring(0, 15)}..." \\
+  -d '{
+    "provider": "openai",
+    "model": "gpt-4o",
+    "prompt": "Write a short tagline.",
+    "estimatedTokens": 100
+  }'`}
+                      </pre>
+                    </div>
+
+                    {/* Python snippet */}
+                    <div className="glass-container" style={{ padding: '20px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                        <span style={{ fontWeight: '600', fontSize: '0.85rem', color: '#94a3b8' }}>Python Client</span>
+                        <button 
+                          type="button"
+                          className="btn btn-secondary"
+                          style={{ padding: '3px 8px', fontSize: '0.72rem' }}
+                          onClick={() => handleCopyToClipboard(`import requests\n\nurl = "${BASE_URL}/api/v1/proxy/chat"\nheaders = {\n    "Content-Type": "application/json",\n    "Authorization": "Bearer ${token}"\n}\npayload = {\n    "provider": "openai",\n    "model": "gpt-4o",\n    "prompt": "Write a short tagline.",\n    "estimatedTokens": 100\n}\n\nresponse = requests.post(url, json=payload, headers=headers)\nprint(response.json())`, 'py')}
+                        >
+                          {copiedId === 'py' ? <Check size={12} color="#10b981" /> : <Copy size={12} />} Copy
+                        </button>
+                      </div>
+                      <pre style={styles.responseTextPre}>
+{`import requests
+
+url = "${BASE_URL}/api/v1/proxy/chat"
+headers = {
+    "Content-Type": "application/json",
+    "Authorization": "Bearer YOUR_JWT_TOKEN"
+}
+payload = {
+    "provider": "openai",
+    "model": "gpt-4o",
+    "prompt": "Write a short tagline.",
+    "estimatedTokens": 100
+}
+
+response = requests.post(url, json=payload, headers=headers)
+print(response.json())`}
+                      </pre>
+                    </div>
+
+                    {/* JavaScript snippet */}
+                    <div className="glass-container" style={{ padding: '20px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                        <span style={{ fontWeight: '600', fontSize: '0.85rem', color: '#94a3b8' }}>Node.js / JavaScript Fetch</span>
+                        <button 
+                          type="button"
+                          className="btn btn-secondary"
+                          style={{ padding: '3px 8px', fontSize: '0.72rem' }}
+                          onClick={() => handleCopyToClipboard(`const response = await fetch("${BASE_URL}/api/v1/proxy/chat", {\n  method: "POST",\n  headers: {\n    "Content-Type": "application/json",\n    "Authorization": "Bearer ${token}"\n  },\n  body: JSON.stringify({\n    "provider": "openai",\n    "model": "gpt-4o",\n    "prompt": "Write a short tagline.",\n    "estimatedTokens": 100\n  })\n});\nconst data = await response.json();\nconsole.log(data);`, 'js')}
+                        >
+                          {copiedId === 'js' ? <Check size={12} color="#10b981" /> : <Copy size={12} />} Copy
+                        </button>
+                      </div>
+                      <pre style={styles.responseTextPre}>
+{`const response = await fetch("${BASE_URL}/api/v1/proxy/chat", {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+    "Authorization": "Bearer YOUR_JWT_TOKEN"
+  },
+  body: JSON.stringify({
+    provider: "openai",
+    model: "gpt-4o",
+    prompt: "Write a short tagline.",
+    estimatedTokens: 100
+  })
+});
+const data = await response.json();
+console.log(data);`}
+                      </pre>
+                    </div>
+
+                  </div>
+                </div>
+
               </div>
             </div>
           )}
