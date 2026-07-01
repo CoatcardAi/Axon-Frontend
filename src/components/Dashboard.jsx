@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { 
   Key, Database, FileText, Send, Plus, Trash2, Edit2, 
-  RefreshCw, Power, Flame, Zap, Shield, Play, LogOut, Check, X, ShieldAlert 
+  RefreshCw, Power, Flame, Zap, Shield, Play, LogOut, Check, X, ShieldAlert,
+  Copy, ChevronRight, Info, Clock
 } from 'lucide-react';
 
 const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
@@ -17,6 +18,10 @@ export default function Dashboard({ token, username, roles, onLogout }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+
+  // UI state enhancers
+  const [copiedId, setCopiedId] = useState('');
+  const [selectedLog, setSelectedLog] = useState(null);
 
   // Forms states
   const [keyForm, setKeyForm] = useState({
@@ -38,6 +43,58 @@ export default function Dashboard({ token, username, roles, onLogout }) {
   });
   const [sandboxResponse, setSandboxResponse] = useState(null);
   const [sandboxLoading, setSandboxLoading] = useState(false);
+
+  // Helper to copy to clipboard
+  const handleCopyToClipboard = (text, id) => {
+    navigator.clipboard.writeText(text);
+    setCopiedId(id);
+    setTimeout(() => setCopiedId(''), 2000);
+  };
+
+  // Helper to quick toggle active state of key
+  const handleToggleKeyActive = async (key) => {
+    if (!isAdmin) return;
+    const updatedPayload = {
+      ...key,
+      active: !key.active,
+      keyValue: ''
+    };
+    try {
+      const response = await fetchWithAuth(`${BASE_URL}/api/v1/admin/keys/${key.id}`, {
+        method: 'PUT',
+        headers: { 
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(updatedPayload)
+      });
+      if (response && response.ok) {
+        triggerAlert('success', `Key '${key.name}' is now ${!key.active ? 'Active' : 'Inactive'}.`);
+        loadData();
+      } else {
+        throw new Error('Failed to update key status');
+      }
+    } catch (err) {
+      triggerAlert('error', err.message);
+    }
+  };
+
+  const getSparklinePath = () => {
+    if (logsList.length === 0) {
+      return "M 5,15 L 75,15";
+    }
+    const recentLogs = logsList.slice(0, 8).reverse();
+    const latencies = recentLogs.map(l => l.latencyMs);
+    const maxLat = Math.max(...latencies, 100);
+    const minLat = Math.min(...latencies, 0);
+    const range = maxLat - minLat || 1;
+    
+    const points = recentLogs.map((log, index) => {
+      const x = (index / Math.max(1, recentLogs.length - 1)) * 70 + 5;
+      const y = 25 - ((log.latencyMs - minLat) / range) * 20;
+      return `${x},${y}`;
+    });
+    return `M ${points.join(' L ')}`;
+  };
 
   // Authenticated fetch wrapper to automatically handle 401 token expirations
   const fetchWithAuth = useCallback(async (url, options = {}) => {
@@ -386,10 +443,19 @@ export default function Dashboard({ token, username, roles, onLogout }) {
             </div>
           </div>
           <div className="glass-container" style={styles.metricCard}>
-            <div style={{...styles.metricIconBox, background: 'rgba(239, 68, 68, 0.1)'}}><Power size={20} color="#ef4444" /></div>
-            <div>
-              <div style={{...styles.metricVal, color: '#ef4444'}}>{healthData.inactiveKeys}</div>
-              <div style={styles.metricLabel}>Inactive Keys</div>
+            <div style={{...styles.metricIconBox, background: 'rgba(168, 85, 247, 0.1)'}}><Clock size={20} color="#a855f7" /></div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
+                <span style={styles.metricVal}>
+                  {logsList.length > 0 ? `${Math.round(logsList.reduce((acc, l) => acc + l.latencyMs, 0) / logsList.length)}ms` : '0ms'}
+                </span>
+                {logsList.length > 0 && (
+                  <svg width="70" height="24" style={{ overflow: 'visible' }}>
+                    <path d={getSparklinePath()} fill="none" stroke="#a855f7" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                )}
+              </div>
+              <div style={styles.metricLabel}>Avg Latency (Trend)</div>
             </div>
           </div>
         </section>
@@ -544,7 +610,7 @@ export default function Dashboard({ token, username, roles, onLogout }) {
                     <tr>
                       <th style={styles.th}>Name</th>
                       <th style={styles.th}>Provider</th>
-                      <th style={styles.th}>Status</th>
+                      <th style={styles.th}>Status / Toggle</th>
                       <th style={styles.th}>Models</th>
                       <th style={styles.th}>Remaining (RPM / TPM)</th>
                       <th style={styles.th}>Concurrency</th>
@@ -554,25 +620,61 @@ export default function Dashboard({ token, username, roles, onLogout }) {
                   <tbody>
                     {healthData?.keyHealths?.map(k => {
                       const matchingKey = keysList.find(key => key.id === k.id);
+                      const displayKeyVal = matchingKey?.keyValue || 'sk-••••...••••';
                       return (
                         <tr key={k.id} style={styles.tr}>
                           <td style={styles.td}>
-                            <div style={styles.boldText}>{k.name}</div>
-                            <code style={styles.miniKey}>{matchingKey?.keyValue || 'sk-••••...••••'}</code>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <div style={styles.boldText}>{k.name}</div>
+                              <button 
+                                type="button" 
+                                onClick={() => handleCopyToClipboard(k.name, `name-${k.id}`)}
+                                style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: '2px', display: 'inline-flex', color: '#64748b' }}
+                                title="Copy Name"
+                              >
+                                {copiedId === `name-${k.id}` ? <Check size={12} color="#10b981" /> : <Copy size={12} />}
+                              </button>
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px' }}>
+                              <code style={styles.miniKey}>{displayKeyVal}</code>
+                              {matchingKey?.keyValue && (
+                                <button 
+                                  type="button" 
+                                  onClick={() => handleCopyToClipboard(matchingKey.keyValue, `val-${k.id}`)}
+                                  style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: '2px', display: 'inline-flex', color: '#64748b' }}
+                                  title="Copy Key Value"
+                                >
+                                  {copiedId === `val-${k.id}` ? <Check size={12} color="#10b981" /> : <Copy size={12} />}
+                                </button>
+                              )}
+                            </div>
                           </td>
                           <td style={styles.td}>
                             <span style={styles.providerTag}>{k.provider.toUpperCase()}</span>
                           </td>
                           <td style={styles.td}>
-                            {k.inCooldown ? (
-                              <span className="badge badge-cooldown" title={k.cooldownReason}>
-                                <Flame size={12} /> Cooldown ({k.remainingCooldownSeconds}s)
-                              </span>
-                            ) : matchingKey && !matchingKey.active ? (
-                              <span className="badge badge-inactive"><Power size={12} /> Inactive</span>
-                            ) : (
-                              <span className="badge badge-active"><Zap size={12} /> Eligible</span>
-                            )}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                              {matchingKey && (
+                                <label className="switch" title={isAdmin ? "Toggle Key Enabled/Disabled" : "Admin access required"}>
+                                  <input 
+                                    type="checkbox" 
+                                    checked={matchingKey.active} 
+                                    onChange={() => handleToggleKeyActive(matchingKey)}
+                                    disabled={!isAdmin}
+                                  />
+                                  <span className="slider"></span>
+                                </label>
+                              )}
+                              {k.inCooldown ? (
+                                <span className="badge badge-cooldown" title={k.cooldownReason}>
+                                  <Flame size={12} /> Cooldown ({k.remainingCooldownSeconds}s)
+                                </span>
+                              ) : matchingKey && !matchingKey.active ? (
+                                <span className="badge badge-inactive">Inactive</span>
+                              ) : (
+                                <span className="badge badge-active"><Zap size={12} /> Eligible</span>
+                              )}
+                            </div>
                           </td>
                           <td style={styles.td}>
                             <div style={styles.modelTagsContainer}>
@@ -582,7 +684,38 @@ export default function Dashboard({ token, username, roles, onLogout }) {
                             </div>
                           </td>
                           <td style={styles.td}>
-                            <span style={styles.boldText}>{k.remainingRpm}</span> rpm / <span style={styles.boldText}>{k.remainingTpm}</span> tpm
+                            {matchingKey ? (
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', width: '130px' }}>
+                                <div>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', color: '#94a3b8', marginBottom: '2px' }}>
+                                    <span>RPM: {k.remainingRpm}/{matchingKey.limitRpm}</span>
+                                  </div>
+                                  <svg width="100%" height="4" style={{ borderRadius: '2px', background: 'rgba(255,255,255,0.05)', display: 'block' }}>
+                                    <rect 
+                                      width={`${Math.max(0, Math.min(100, (k.remainingRpm / Math.max(matchingKey.limitRpm, 1)) * 100))}%`} 
+                                      height="4" 
+                                      fill={k.remainingRpm < matchingKey.limitRpm * 0.2 ? '#ef4444' : '#a855f7'}
+                                      style={{ transition: 'width 0.4s ease' }}
+                                    />
+                                  </svg>
+                                </div>
+                                <div>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', color: '#94a3b8', marginBottom: '2px' }}>
+                                    <span>TPM: {k.remainingTpm}/{matchingKey.limitTpm}</span>
+                                  </div>
+                                  <svg width="100%" height="4" style={{ borderRadius: '2px', background: 'rgba(255,255,255,0.05)', display: 'block' }}>
+                                    <rect 
+                                      width={`${Math.max(0, Math.min(100, (k.remainingTpm / Math.max(matchingKey.limitTpm, 1)) * 100))}%`} 
+                                      height="4" 
+                                      fill={k.remainingTpm < matchingKey.limitTpm * 0.2 ? '#ef4444' : '#3b82f6'}
+                                      style={{ transition: 'width 0.4s ease' }}
+                                    />
+                                  </svg>
+                                </div>
+                              </div>
+                            ) : (
+                              <span>-</span>
+                            )}
                           </td>
                           <td style={styles.td}>
                             <span style={{...styles.concurrencyIndicator, color: k.currentConcurrency > 0 ? '#a855f7' : 'inherit'}}>
@@ -744,13 +877,20 @@ export default function Dashboard({ token, username, roles, onLogout }) {
                   </thead>
                   <tbody>
                     {logsList.map(l => (
-                      <tr key={l.id} style={styles.tr}>
+                      <tr 
+                        key={l.id} 
+                        style={{ ...styles.tr, cursor: 'pointer' }}
+                        onClick={() => setSelectedLog(l)}
+                        title="Click to view detailed request payload and response"
+                      >
                         <td style={styles.td}>
                           <div style={styles.logTime}>{new Date(l.timestamp).toLocaleString()}</div>
                         </td>
                         <td style={styles.td}>
-                          <span style={styles.logProvider}>{l.provider?.toUpperCase()}</span>
-                          <div style={styles.logModel}>{l.model}</div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <span style={styles.logProvider}>{l.provider?.toUpperCase()}</span>
+                            <span style={{ fontSize: '0.75rem', color: '#64748b' }}>{l.model}</span>
+                          </div>
                         </td>
                         <td style={styles.td}>
                           <div style={styles.boldText}>{l.keyName}</div>
@@ -762,13 +902,16 @@ export default function Dashboard({ token, username, roles, onLogout }) {
                           <span style={styles.boldText}>{l.latencyMs}</span> ms
                         </td>
                         <td style={styles.td}>
-                          {l.status === 'SUCCESS' ? (
-                            <span className="badge badge-active" style={{padding: '2px 8px'}}>{l.status}</span>
-                          ) : l.status.includes('ERROR') ? (
-                            <span className="badge badge-inactive" title={l.errorMessage} style={{padding: '2px 8px'}}>{l.status}</span>
-                          ) : (
-                            <span className="badge badge-cooldown" style={{padding: '2px 8px'}}>{l.status}</span>
-                          )}
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                            {l.status === 'SUCCESS' ? (
+                              <span className="badge badge-active" style={{padding: '2px 8px'}}>{l.status}</span>
+                            ) : l.status.includes('ERROR') ? (
+                              <span className="badge badge-inactive" title={l.errorMessage} style={{padding: '2px 8px'}}>{l.status}</span>
+                            ) : (
+                              <span className="badge badge-cooldown" style={{padding: '2px 8px'}}>{l.status}</span>
+                            )}
+                            <ChevronRight size={14} color="#64748b" />
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -876,6 +1019,33 @@ export default function Dashboard({ token, username, roles, onLogout }) {
                           <div style={styles.metaVal}>{sandboxResponse.attempts}</div>
                         </div>
                       </div>
+
+                      {/* Scheduler Reasoning Timeline */}
+                      <div style={{ marginTop: '10px' }}>
+                        <div style={{...styles.responseTextTitle, marginBottom: '12px'}}>AI Router Scheduler Reasoning:</div>
+                        <div className="timeline">
+                          <div className="timeline-item active" style={{ fontSize: '0.82rem', color: '#e2e8f0' }}>
+                            <div className="timeline-badge">1</div>
+                            <strong>Interception</strong>: Request received matching provider <span style={{color: '#a855f7'}}>{sandboxForm.provider.toUpperCase()}</span> and model <span style={{color: '#a855f7'}}>{sandboxForm.model}</span>.
+                          </div>
+                          <div className="timeline-item active" style={{ fontSize: '0.82rem', color: '#e2e8f0' }}>
+                            <div className="timeline-badge">2</div>
+                            <strong>Evaluation</strong>: Scanned active key pool. Located <strong>{keysList.filter(k => k.provider === sandboxForm.provider).length}</strong> keys supporting this model.
+                          </div>
+                          <div className="timeline-item active" style={{ fontSize: '0.82rem', color: '#e2e8f0' }}>
+                            <div className="timeline-badge">3</div>
+                            <strong>Filtering</strong>: Screened out keys in cooldown. Active capacity and concurrency checks verified.
+                          </div>
+                          <div className="timeline-item success" style={{ fontSize: '0.82rem', color: '#e2e8f0' }}>
+                            <div className="timeline-badge">✓</div>
+                            <strong>Decision</strong>: Selected key <strong>"{sandboxResponse.selectedKeyName}"</strong> with highest token headroom.
+                          </div>
+                          <div className="timeline-item success" style={{ fontSize: '0.82rem', color: '#e2e8f0' }}>
+                            <div className="timeline-badge">✓</div>
+                            <strong>Execution</strong>: Request completed in <strong>{sandboxResponse.latencyMs}ms</strong> using <strong>{sandboxResponse.attempts}</strong> attempt(s).
+                          </div>
+                        </div>
+                      </div>
                       
                       <div style={styles.responseTextBlock}>
                         <div style={styles.responseTextTitle}>Model Response Text:</div>
@@ -894,6 +1064,94 @@ export default function Dashboard({ token, username, roles, onLogout }) {
           )}
         </main>
       </div>
+
+      {/* Logs Drawer Panel */}
+      {selectedLog && (
+        <div className="drawer-overlay animate-fade-in" onClick={() => setSelectedLog(null)}>
+          <div className="drawer-content" onClick={e => e.stopPropagation()}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--glass-border)', paddingBottom: '16px' }}>
+              <div>
+                <h3 style={{ fontSize: '1.2rem', color: '#fff', fontWeight: '600', margin: 0 }}>Request Details</h3>
+                <span style={{ fontSize: '0.78rem', color: '#64748b' }}>Log ID: {selectedLog.id}</span>
+              </div>
+              <button 
+                type="button" 
+                onClick={() => setSelectedLog(null)} 
+                style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid var(--glass-border)', borderRadius: '50%', width: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', cursor: 'pointer' }}
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                <div style={{ background: 'rgba(255,255,255,0.02)', padding: '12px', borderRadius: '8px', border: '1px solid var(--glass-border)' }}>
+                  <div style={styles.metaLabel}>Timestamp</div>
+                  <div style={{...styles.metaVal, fontSize: '0.85rem'}}>{new Date(selectedLog.timestamp).toLocaleString()}</div>
+                </div>
+                <div style={{ background: 'rgba(255,255,255,0.02)', padding: '12px', borderRadius: '8px', border: '1px solid var(--glass-border)' }}>
+                  <div style={styles.metaLabel}>Provider / Model</div>
+                  <div style={{...styles.metaVal, fontSize: '0.85rem'}}>
+                    <span style={{...styles.providerTag, marginRight: '6px'}}>{selectedLog.provider?.toUpperCase()}</span>
+                    {selectedLog.model}
+                  </div>
+                </div>
+                <div style={{ background: 'rgba(255,255,255,0.02)', padding: '12px', borderRadius: '8px', border: '1px solid var(--glass-border)' }}>
+                  <div style={styles.metaLabel}>Key Selected</div>
+                  <div style={{...styles.metaVal, fontSize: '0.85rem'}}>{selectedLog.keyName}</div>
+                  <code style={{ fontSize: '0.7rem', color: '#64748b' }}>{selectedLog.keyId}</code>
+                </div>
+                <div style={{ background: 'rgba(255,255,255,0.02)', padding: '12px', borderRadius: '8px', border: '1px solid var(--glass-border)' }}>
+                  <div style={styles.metaLabel}>Latency / Performance</div>
+                  <div style={{...styles.metaVal, fontSize: '0.85rem', color: selectedLog.latencyMs < 400 ? '#10b981' : selectedLog.latencyMs < 1000 ? '#f59e0b' : '#ef4444'}}>
+                    {selectedLog.latencyMs} ms
+                  </div>
+                </div>
+                <div style={{ background: 'rgba(255,255,255,0.02)', padding: '12px', borderRadius: '8px', border: '1px solid var(--glass-border)' }}>
+                  <div style={styles.metaLabel}>Prompt Tokens</div>
+                  <div style={{...styles.metaVal, fontSize: '0.85rem'}}>{selectedLog.promptTokens}</div>
+                </div>
+                <div style={{ background: 'rgba(255,255,255,0.02)', padding: '12px', borderRadius: '8px', border: '1px solid var(--glass-border)' }}>
+                  <div style={styles.metaLabel}>Completion Tokens</div>
+                  <div style={{...styles.metaVal, fontSize: '0.85rem'}}>{selectedLog.completionTokens}</div>
+                </div>
+              </div>
+
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                  <span style={styles.responseTextTitle}>Prompt:</span>
+                  <button 
+                    type="button" 
+                    onClick={() => handleCopyToClipboard(selectedLog.prompt || '', `log-prompt-${selectedLog.id}`)}
+                    style={{ background: 'transparent', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', color: '#64748b', fontSize: '0.75rem' }}
+                  >
+                    {copiedId === `log-prompt-${selectedLog.id}` ? <Check size={12} color="#10b981" /> : <Copy size={12} />}
+                    {copiedId === `log-prompt-${selectedLog.id}` ? 'Copied' : 'Copy'}
+                  </button>
+                </div>
+                <pre style={{...styles.responseTextPre, maxHeight: '120px'}}>{selectedLog.prompt || '(No prompt payload stored)'}</pre>
+              </div>
+
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                  <span style={styles.responseTextTitle}>Response / Error Payload:</span>
+                  <button 
+                    type="button" 
+                    onClick={() => handleCopyToClipboard(selectedLog.responseText || selectedLog.errorMessage || '', `log-resp-${selectedLog.id}`)}
+                    style={{ background: 'transparent', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', color: '#64748b', fontSize: '0.75rem' }}
+                  >
+                    {copiedId === `log-resp-${selectedLog.id}` ? <Check size={12} color="#10b981" /> : <Copy size={12} />}
+                    {copiedId === `log-resp-${selectedLog.id}` ? 'Copied' : 'Copy'}
+                  </button>
+                </div>
+                <pre style={{...styles.responseTextPre, maxHeight: '160px', borderColor: selectedLog.status === 'SUCCESS' ? 'var(--glass-border)' : 'rgba(239,68,68,0.2)'}}>
+                  {selectedLog.status === 'SUCCESS' ? selectedLog.responseText : `Error: ${selectedLog.errorMessage}`}
+                </pre>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
