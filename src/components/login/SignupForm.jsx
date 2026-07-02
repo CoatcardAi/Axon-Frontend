@@ -1,13 +1,15 @@
 import React from 'react';
-import { User, Lock, RefreshCw, ArrowRight } from 'lucide-react';
+import { User, Calendar, RefreshCw, ArrowRight } from 'lucide-react';
 
 export default function SignupForm({
   username,
   setUsername,
-  password,
-  setPassword,
-  confirmPassword,
-  setConfirmPassword,
+  name,
+  setName,
+  dob,
+  setDob,
+  gender,
+  setGender,
   loading,
   handleSignupSubmit,
   resetForm,
@@ -37,15 +39,15 @@ export default function SignupForm({
       </div>
 
       <div style={styles.inputGroup}>
-        <label style={styles.label}>Password</label>
+        <label style={styles.label}>Full Name</label>
         <div style={styles.inputWrapper}>
-          <Lock size={18} style={styles.inputIcon} />
+          <User size={18} style={styles.inputIcon} />
           <input
-            type="password"
+            type="text"
             className="input-field"
-            placeholder="Choose a password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
+            placeholder="Enter your full name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
             required
             disabled={loading}
             style={styles.inputPadding}
@@ -54,19 +56,39 @@ export default function SignupForm({
       </div>
 
       <div style={styles.inputGroup}>
-        <label style={styles.label}>Confirm Password</label>
+        <label style={styles.label}>Date of Birth</label>
         <div style={styles.inputWrapper}>
-          <Lock size={18} style={styles.inputIcon} />
+          <Calendar size={18} style={styles.inputIcon} />
           <input
-            type="password"
+            type="date"
             className="input-field"
-            placeholder="Confirm your password"
-            value={confirmPassword}
-            onChange={(e) => setConfirmPassword(e.target.value)}
+            value={dob}
+            onChange={(e) => setDob(e.target.value)}
             required
             disabled={loading}
             style={styles.inputPadding}
           />
+        </div>
+      </div>
+
+      <div style={styles.inputGroup}>
+        <label style={styles.label}>Gender</label>
+        <div style={styles.inputWrapper}>
+          <User size={18} style={styles.inputIcon} />
+          <select
+            className="input-field"
+            value={gender}
+            onChange={(e) => setGender(e.target.value)}
+            required
+            disabled={loading}
+            style={styles.inputPadding}
+          >
+            <option value="">Select gender</option>
+            <option value="male">Male</option>
+            <option value="female">Female</option>
+            <option value="other">Other</option>
+            <option value="prefer_not_say">Prefer not to say</option>
+          </select>
         </div>
       </div>
 

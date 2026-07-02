@@ -11,6 +11,9 @@ export default function Login({ onLoginSuccess }) {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [otp, setOtp] = useState('');
+  const [name, setName] = useState('');
+  const [dob, setDob] = useState('');
+  const [gender, setGender] = useState('');
 
   // Steps: 'email', 'login-password', 'signup', 'otp' (register verification), 'forgot-otp'
   const [step, setStep] = useState('email');
@@ -88,14 +91,8 @@ export default function Login({ onLoginSuccess }) {
 
   const handleSignupSubmit = async (e) => {
     e.preventDefault();
-    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/;
-    if (!passwordRegex.test(password)) {
-      setError('Password must be 8+ characters long, contain uppercase, lowercase, numbers, and special characters.');
-      return;
-    }
-
-    if (password !== confirmPassword) {
-      setError('Passwords do not match.');
+    if (!name || !dob || !gender) {
+      setError('Please provide name, date of birth, and gender.');
       return;
     }
 
@@ -107,7 +104,7 @@ export default function Login({ onLoginSuccess }) {
       const response = await fetch(`${baseUrl}/api/v1/auth/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password })
+        body: JSON.stringify({ username, name, dob, gender })
       });
 
       const data = await response.json();
@@ -209,6 +206,9 @@ export default function Login({ onLoginSuccess }) {
     setPassword('');
     setConfirmPassword('');
     setOtp('');
+    setName('');
+    setDob('');
+    setGender('');
     setMessage('');
     setError('');
   };
@@ -319,10 +319,12 @@ export default function Login({ onLoginSuccess }) {
               <SignupForm
                 username={username}
                 setUsername={setUsername}
-                password={password}
-                setPassword={setPassword}
-                confirmPassword={confirmPassword}
-                setConfirmPassword={setConfirmPassword}
+                name={name}
+                setName={setName}
+                dob={dob}
+                setDob={setDob}
+                gender={gender}
+                setGender={setGender}
                 loading={loading}
                 handleSignupSubmit={handleSignupSubmit}
                 resetForm={resetForm}
