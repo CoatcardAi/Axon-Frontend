@@ -48,8 +48,9 @@ const styles = {
     display: 'flex',
     flexDirection: 'column',
     minHeight: '100vh',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: '20px 0',
+    width: '100%',
+    margin: 0,
+    padding: 0,
+    background: '#08080c',
   }
 };
