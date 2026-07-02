@@ -1,12 +1,20 @@
 import React, { useState } from 'react';
-import { Lock, User, KeyRound, ArrowRight, ShieldCheck, RefreshCw } from 'lucide-react';
+import { ShieldCheck, Cpu, Zap, Activity, Check } from 'lucide-react';
+import LoginCard from './login/LoginCard';
+import SignupForm from './login/SignupForm';
+import OtpVerification from './login/OtpVerification';
+import PasswordLogin from './login/PasswordLogin';
+import ForgotPassword from './login/ForgotPassword';
 
 export default function Login({ onLoginSuccess }) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [otp, setOtp] = useState('');
+  const [age, setAge] = useState('');
+  const [gender, setGender] = useState('');
 
+  // Steps: 'email', 'login-password', 'signup', 'otp' (register verification), 'forgot-otp'
   const [step, setStep] = useState('email');
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
@@ -16,7 +24,6 @@ export default function Login({ onLoginSuccess }) {
 
   const handleEmailSubmit = async (e) => {
     e.preventDefault();
-    
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(username)) {
       setError('Please enter a valid email address.');
@@ -41,13 +48,39 @@ export default function Login({ onLoginSuccess }) {
 
       if (data.status === 'SIGNUP_REQUIRED') {
         setStep('signup');
-        setMessage(data.message || 'No account found. Please sign up.');
-      } else if (data.status === 'OTP_REQUIRED') {
-        setStep('otp');
-        setMessage(data.message || 'OTP sent to your email.');
+        setMessage('No account found with this email. Create a new account.');
+      } else if (data.status === 'PASSWORD_REQUIRED' || data.status === 'OTP_REQUIRED') {
+        // User exists! Transition to password login directly
+        setStep('login-password');
       } else {
-        throw new Error('Unexpected server response.');
+        throw new Error('Unexpected response from auth service.');
       }
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handlePasswordLoginSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+    setMessage('');
+
+    try {
+      const response = await fetch(`${baseUrl}/api/v1/auth/login-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password })
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || 'Invalid email or password.');
+      }
+
+      onLoginSuccess(data.token, data.username, data.roles);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -57,10 +90,9 @@ export default function Login({ onLoginSuccess }) {
 
   const handleSignupSubmit = async (e) => {
     e.preventDefault();
-    
     const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/;
     if (!passwordRegex.test(password)) {
-      setError('Password must be at least 8 characters long and contain at least one uppercase letter, one lowercase letter, one number, and one special character.');
+      setError('Password must be 8+ characters long, contain uppercase, lowercase, numbers, and special characters.');
       return;
     }
 
@@ -77,7 +109,12 @@ export default function Login({ onLoginSuccess }) {
       const response = await fetch(`${baseUrl}/api/v1/auth/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password })
+        body: JSON.stringify({ 
+          username, 
+          password, 
+          age: age ? parseInt(age) : null, 
+          gender: gender || null 
+        })
       });
 
       const data = await response.json();
@@ -85,12 +122,8 @@ export default function Login({ onLoginSuccess }) {
         throw new Error(data.message || 'Unable to register.');
       }
 
-      if (data.status === 'OTP_REQUIRED') {
-        setStep('otp');
-        setMessage(data.message || 'OTP sent to your email.');
-      } else {
-        throw new Error('Unexpected server response.');
-      }
+      setStep('otp');
+      setMessage(data.message || 'OTP verification sent to your email.');
     } catch (err) {
       setError(err.message);
     } finally {
@@ -124,250 +157,346 @@ export default function Login({ onLoginSuccess }) {
     }
   };
 
+  const triggerForgotPassword = async () => {
+    setLoading(true);
+    setError('');
+    setMessage('');
+
+    try {
+      const response = await fetch(`${baseUrl}/api/v1/auth/forgot-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username })
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to dispatch forgot password request.');
+      }
+
+      setStep('forgot-otp');
+      setMessage('A reset OTP verification code has been dispatched.');
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResetSubmit = async (submittedOtp, newPasswordVal) => {
+    setLoading(true);
+    setError('');
+    setMessage('');
+
+    try {
+      const response = await fetch(`${baseUrl}/api/v1/auth/reset-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, otp: submittedOtp, newPassword: newPasswordVal })
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || 'Reset password failed.');
+      }
+
+      setStep('login-password');
+      setPassword('');
+      setMessage('Password reset successfully. You can now login.');
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const resetForm = () => {
     setStep('email');
     setUsername('');
     setPassword('');
     setConfirmPassword('');
     setOtp('');
+    setAge('');
+    setGender('');
     setMessage('');
     setError('');
   };
 
   return (
-    <div style={styles.container}>
-      <div className="glass-container animate-fade-in" style={styles.card}>
-        <div style={styles.logoContainer}>
-          <div style={styles.logoIcon}>
-            <ShieldCheck size={28} color="#a855f7" />
+    <div style={styles.pageWrapper}>
+      <div style={styles.gridContainer}>
+        
+        {/* Left Side Content Column (Branding & Features) */}
+        <div style={styles.contentColumn} className="animate-fade-in">
+          <div style={styles.brandGroup}>
+            <div className="pulse-logo-glow" style={styles.logoBadge}>
+              <ShieldCheck size={36} color="#a855f7" />
+            </div>
+            <div>
+              <h1 style={styles.brandTitle}>AXON CORE</h1>
+              <p style={styles.brandTagline}>AI Router & Scheduler Core</p>
+            </div>
           </div>
-          <h2 style={styles.title} className="glow-text">AXON</h2>
-          <p style={styles.subtitle}>AI Router & Scheduler Core</p>
+
+          <div style={styles.featuresList}>
+            <div style={styles.featureItem}>
+              <div style={styles.featureIcon}><Cpu size={18} /></div>
+              <div>
+                <h4 style={styles.featureTitle}>Intelligent Model Routing</h4>
+                <p style={styles.featureText}>Automatically balances calls across Gemini model tiers based on prompt intent and request size.</p>
+              </div>
+            </div>
+
+            <div style={styles.featureItem}>
+              <div style={styles.featureIcon}><Zap size={18} /></div>
+              <div>
+                <h4 style={styles.featureTitle}>Graceful Fallback & Failovers</h4>
+                <p style={styles.featureText}>Redirects traffic to alternative active keys seamlessly when encountering 429 rate limit statuses.</p>
+              </div>
+            </div>
+
+            <div style={styles.featureItem}>
+              <div style={styles.featureIcon}><Activity size={18} /></div>
+              <div>
+                <h4 style={styles.featureTitle}>Diagnostic Timeline Logs</h4>
+                <p style={styles.featureText}>Gain deep insight into gateway scheduling logic and latency statistics via interactive tracers.</p>
+              </div>
+            </div>
+          </div>
+
+          <div style={styles.footerCopy}>
+            &copy; 2026 Axon Intelligent Systems. All rights secured.
+          </div>
         </div>
 
-        {error && (
-          <div style={styles.errorAlert}>
-            <span>{error}</span>
-          </div>
-        )}
-
-        {message && (
-          <div style={styles.infoAlert}>
-            <span>{message}</span>
-          </div>
-        )}
-
-        {step === 'email' ? (
-          <form onSubmit={handleEmailSubmit} style={styles.form}>
-            <div style={styles.formTip}>
-
-            </div>
-            <div style={styles.inputGroup}>
-              <label style={styles.label}>Email</label>
-              <div style={styles.inputWrapper}>
-                <User size={18} style={styles.inputIcon} />
-                <input
-                  type="email"
-                  className="input-field"
-                  placeholder="Enter your email"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  required
-                  disabled={loading}
-                  style={styles.inputPadding}
-                />
-              </div>
-            </div>
-
-            <button type="submit" className="btn btn-primary" style={styles.submitBtn} disabled={loading}>
-              {loading ? (
-                <>
-                  <RefreshCw size={16} className="spin" style={styles.spinIcon} />
-                  Sending...
-                </>
-              ) : (
-                <>
-                  Continue
-                  <ArrowRight size={16} />
-                </>
-              )}
-            </button>
-          </form>
-        ) : step === 'signup' ? (
-          <form onSubmit={handleSignupSubmit} style={styles.form}>
-            <div style={styles.formTip}>
-              Create a new account. We will send an OTP to verify your email before saving your details.
-            </div>
-            <div style={styles.inputGroup}>
-              <label style={styles.label}>Email</label>
-              <div style={styles.inputWrapper}>
-                <User size={18} style={styles.inputIcon} />
-                <input
-                  type="email"
-                  className="input-field"
-                  placeholder="Enter your email"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  required
-                  disabled={loading}
-                  style={styles.inputPadding}
-                />
-              </div>
-            </div>
-
-            <div style={styles.inputGroup}>
-              <label style={styles.label}>Password</label>
-              <div style={styles.inputWrapper}>
-                <Lock size={18} style={styles.inputIcon} />
-                <input
-                  type="password"
-                  className="input-field"
-                  placeholder="Choose a password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                  disabled={loading}
-                  style={styles.inputPadding}
-                />
-              </div>
-            </div>
-
-            <div style={styles.inputGroup}>
-              <label style={styles.label}>Confirm Password</label>
-              <div style={styles.inputWrapper}>
-                <Lock size={18} style={styles.inputIcon} />
-                <input
-                  type="password"
-                  className="input-field"
-                  placeholder="Confirm your password"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  required
-                  disabled={loading}
-                  style={styles.inputPadding}
-                />
-              </div>
-            </div>
-
-            <button type="submit" className="btn btn-primary" style={styles.submitBtn} disabled={loading}>
-              {loading ? (
-                <>
-                  <RefreshCw size={16} className="spin" style={styles.spinIcon} />
-                  Registering...
-                </>
-              ) : (
-                <>
-                  Sign Up
-                  <ArrowRight size={16} />
-                </>
-              )}
-            </button>
-
-            <button type="button" className="btn btn-secondary" style={styles.backBtn} onClick={resetForm} disabled={loading}>
-              Back to Email
-            </button>
-          </form>
-        ) : (
-          <form onSubmit={handleOtpSubmit} style={styles.form}>
-            <div style={styles.otpHeader}>
-              <p style={styles.otpInstructions}>
-                Enter the verification code sent to <strong>{username}</strong>.
+        {/* Right Side Login Card Column */}
+        <div style={styles.cardColumn}>
+          <div className="glass-container animate-fade-in" style={styles.card}>
+            <div style={styles.logoHeader}>
+              <h2 style={styles.cardTitle} className="glow-text">
+                {step === 'email' && 'Welcome Back'}
+                {step === 'login-password' && 'Enter Password'}
+                {step === 'signup' && 'Create Account'}
+                {step === 'otp' && 'OTP Verification'}
+                {step === 'forgot-otp' && 'Reset Password'}
+              </h2>
+              <p style={styles.cardSubtitle}>
+                {step === 'email' && 'Enter your email credentials to access your API pool.'}
+                {step === 'login-password' && 'Input password credentials linked to this email.'}
+                {step === 'signup' && 'Configure security keys for your router workspace.'}
+                {step === 'otp' && 'Confirm OTP security key delivered via email.'}
+                {step === 'forgot-otp' && 'Verify OTP code and configure a new password.'}
               </p>
             </div>
 
-            <div style={styles.inputGroup}>
-              <label style={styles.label}>Verification Code</label>
-              <div style={styles.inputWrapper}>
-                <KeyRound size={18} style={styles.inputIcon} />
-                <input
-                  type="text"
-                  className="input-field"
-                  placeholder="Enter 6-digit OTP"
-                  value={otp}
-                  onChange={(e) => setOtp(e.target.value)}
-                  maxLength={6}
-                  required
-                  disabled={loading}
-                  style={styles.inputPadding}
-                />
+            {error && (
+              <div style={styles.errorAlert}>
+                <span>{error}</span>
               </div>
-            </div>
+            )}
 
-            <button type="submit" className="btn btn-primary" style={styles.submitBtn} disabled={loading}>
-              {loading ? (
-                <>
-                  <RefreshCw size={16} className="spin" style={styles.spinIcon} />
-                  Verifying...
-                </>
-              ) : (
-                <>
-                  Verify & Log In
-                  <ShieldCheck size={16} />
-                </>
-              )}
-            </button>
+            {message && (
+              <div style={styles.infoAlert}>
+                <span>{message}</span>
+              </div>
+            )}
 
-            <button type="button" className="btn btn-secondary" style={styles.backBtn} onClick={resetForm} disabled={loading}>
-              Back to Email
-            </button>
-          </form>
-        )}
+            {step === 'email' && (
+              <LoginCard
+                username={username}
+                setUsername={setUsername}
+                loading={loading}
+                handleEmailSubmit={handleEmailSubmit}
+                styles={styles}
+              />
+            )}
+
+            {step === 'login-password' && (
+              <PasswordLogin
+                username={username}
+                password={password}
+                setPassword={setPassword}
+                loading={loading}
+                handlePasswordLoginSubmit={handlePasswordLoginSubmit}
+                triggerForgotPassword={triggerForgotPassword}
+                resetForm={resetForm}
+                styles={styles}
+              />
+            )}
+
+            {step === 'signup' && (
+              <SignupForm
+                username={username}
+                setUsername={setUsername}
+                password={password}
+                setPassword={setPassword}
+                confirmPassword={confirmPassword}
+                setConfirmPassword={setConfirmPassword}
+                age={age}
+                setAge={setAge}
+                gender={gender}
+                setGender={setGender}
+                loading={loading}
+                handleSignupSubmit={handleSignupSubmit}
+                resetForm={resetForm}
+                styles={styles}
+              />
+            )}
+
+            {step === 'otp' && (
+              <OtpVerification
+                username={username}
+                otp={otp}
+                setOtp={setOtp}
+                loading={loading}
+                handleOtpSubmit={handleOtpSubmit}
+                resetForm={resetForm}
+                styles={styles}
+              />
+            )}
+
+            {step === 'forgot-otp' && (
+              <ForgotPassword
+                username={username}
+                loading={loading}
+                handleResetSubmit={handleResetSubmit}
+                resetForm={resetForm}
+                styles={styles}
+              />
+            )}
+          </div>
+        </div>
+        
       </div>
-
-      <style>{`
-        @keyframes spin {
-          0% { transform: rotate(0deg); }
-          100% { transform: rotate(360deg); }
-        }
-        .spin {
-          animation: spin 1s linear infinite;
-        }
-      `}</style>
     </div>
   );
 }
 
 const styles = {
-  container: {
+  pageWrapper: {
     display: 'flex',
-    justifyContent: 'center',
     alignItems: 'center',
-    minHeight: '80vh',
-    padding: '20px',
+    justifyContent: 'center',
+    minHeight: '100vh',
+    width: '100%',
+    padding: '24px',
+    background: '#040408',
+  },
+  gridContainer: {
+    display: 'grid',
+    gridTemplateColumns: '1.1fr 0.9fr',
+    width: '100%',
+    maxWidth: '1050px',
+    background: 'rgba(14, 14, 24, 0.4)',
+    border: '1px solid rgba(255, 255, 255, 0.04)',
+    borderRadius: '24px',
+    overflow: 'hidden',
+    boxShadow: '0 20px 50px rgba(0,0,0,0.5)',
+  },
+  contentColumn: {
+    padding: '50px',
+    display: 'flex',
+    flexDirection: 'column',
+    justifyContent: 'space-between',
+    background: 'linear-gradient(145deg, #090912 0%, #121020 100%)',
+    borderRight: '1px solid rgba(255, 255, 255, 0.04)',
+  },
+  brandGroup: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '16px',
+  },
+  logoBadge: {
+    padding: '12px',
+    background: 'rgba(168, 85, 247, 0.06)',
+    border: '1px solid rgba(168, 85, 247, 0.15)',
+    borderRadius: '16px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  brandTitle: {
+    fontSize: '1.6rem',
+    fontWeight: '800',
+    color: '#fff',
+    letterSpacing: '0.05em',
+    fontFamily: 'Outfit',
+  },
+  brandTagline: {
+    fontSize: '0.85rem',
+    color: '#a855f7',
+    fontWeight: '600',
+  },
+  featuresList: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '28px',
+    margin: '40px 0',
+  },
+  featureItem: {
+    display: 'flex',
+    gap: '16px',
+  },
+  featureIcon: {
+    flexShrink: 0,
+    width: '36px',
+    height: '36px',
+    borderRadius: '10px',
+    background: 'rgba(255, 255, 255, 0.03)',
+    border: '1px solid rgba(255, 255, 255, 0.06)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    color: '#a855f7',
+  },
+  featureTitle: {
+    fontSize: '0.95rem',
+    fontWeight: '600',
+    color: '#fff',
+    marginBottom: '4px',
+    fontFamily: 'Outfit',
+  },
+  featureText: {
+    fontSize: '0.82rem',
+    color: '#94a3b8',
+    lineHeight: '1.5',
+  },
+  footerCopy: {
+    fontSize: '0.72rem',
+    color: '#475569',
+  },
+  cardColumn: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: '40px',
   },
   card: {
     width: '100%',
-    maxWidth: '400px',
-    padding: '35px 30px',
+    maxWidth: '380px',
+    padding: '30px 24px',
+    background: 'rgba(18, 18, 30, 0.45)',
+    borderRadius: '18px',
+  },
+  logoHeader: {
+    marginBottom: '24px',
     textAlign: 'center',
   },
-  logoContainer: {
-    marginBottom: '30px',
-  },
-  logoIcon: {
-    display: 'inline-flex',
-    padding: '12px',
-    borderRadius: '12px',
-    background: 'rgba(168, 85, 247, 0.08)',
-    border: '1px solid rgba(168, 85, 247, 0.15)',
-    marginBottom: '14px',
-  },
-  title: {
+  cardTitle: {
     fontSize: '1.45rem',
     fontWeight: '700',
-    letterSpacing: '0.05em',
     color: '#fff',
-    marginBottom: '4px',
   },
-  subtitle: {
-    fontSize: '0.85rem',
+  cardSubtitle: {
+    fontSize: '0.82rem',
     color: '#94a3b8',
+    marginTop: '6px',
+    lineHeight: '1.4',
   },
   form: {
     display: 'flex',
     flexDirection: 'column',
-    gap: '20px',
-    textAlign: 'left',
+    gap: '18px',
   },
   inputGroup: {
     display: 'flex',
@@ -375,17 +504,11 @@ const styles = {
     gap: '6px',
   },
   label: {
-    fontSize: '0.8rem',
+    fontSize: '0.75rem',
     fontWeight: '600',
     textTransform: 'uppercase',
-    letterSpacing: '0.05em',
+    letterSpacing: '0.02em',
     color: '#94a3b8',
-  },
-  formTip: {
-    color: '#c4b5fd',
-    fontSize: '0.85rem',
-    lineHeight: '1.4',
-    marginBottom: '12px',
   },
   inputWrapper: {
     position: 'relative',
@@ -395,7 +518,7 @@ const styles = {
   inputIcon: {
     position: 'absolute',
     left: '14px',
-    color: '#64748b',
+    color: '#475569',
     pointerEvents: 'none',
   },
   inputPadding: {
@@ -404,67 +527,49 @@ const styles = {
   submitBtn: {
     width: '100%',
     justifyContent: 'center',
-    marginTop: '5px',
+    marginTop: '6px',
+  },
+  backBtn: {
+    width: '100%',
+    justifyContent: 'center',
+    background: 'transparent',
+    border: '1px solid rgba(255,255,255,0.06)',
   },
   spinIcon: {
     marginRight: '8px',
   },
   errorAlert: {
-    background: 'rgba(239, 68, 68, 0.12)',
-    border: '1px solid rgba(239, 68, 68, 0.25)',
+    background: 'rgba(239, 68, 68, 0.08)',
+    border: '1px solid rgba(239, 68, 68, 0.2)',
     color: '#f87171',
-    padding: '12px 16px',
+    padding: '10px 14px',
     borderRadius: '8px',
-    fontSize: '0.85rem',
+    fontSize: '0.82rem',
     textAlign: 'left',
-    marginBottom: '20px',
-  },
-  infoAlert: {
-    background: 'rgba(59, 130, 246, 0.08)',
-    border: '1px solid rgba(59, 130, 246, 0.2)',
-    color: '#bfdbfe',
-    padding: '12px 16px',
-    borderRadius: '8px',
-    fontSize: '0.85rem',
-    textAlign: 'left',
-    marginBottom: '20px',
-  },
-  otpHeader: {
-    marginBottom: '5px',
-  },
-  otpInstructions: {
-    fontSize: '0.88rem',
-    color: '#94a3b8',
     lineHeight: '1.4',
   },
-  testingBanner: {
-    marginTop: '12px',
-    background: 'rgba(168, 85, 247, 0.06)',
-    border: '1px dashed rgba(168, 85, 247, 0.3)',
-    borderRadius: '6px',
-    padding: '8px 12px',
+  infoAlert: {
+    background: 'rgba(59, 130, 246, 0.06)',
+    border: '1px solid rgba(59, 130, 246, 0.18)',
+    color: '#bfdbfe',
+    padding: '10px 14px',
+    borderRadius: '8px',
     fontSize: '0.82rem',
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    textAlign: 'left',
+    lineHeight: '1.4',
   },
-  testingText: {
-    color: '#d8b4fe',
+  otpHeader: {
+    marginBottom: '4px',
   },
-  autofillLink: {
-    background: 'rgba(168, 85, 247, 0.15)',
-    border: '1px solid rgba(168, 85, 247, 0.3)',
-    color: '#e9d5ff',
-    padding: '2px 8px',
-    borderRadius: '4px',
-    fontSize: '0.75rem',
-    cursor: 'pointer',
-    fontFamily: 'Outfit',
-    fontWeight: '500',
+  otpInstructions: {
+    fontSize: '0.82rem',
+    color: '#94a3b8',
+    lineHeight: '1.45',
   },
-  backBtn: {
-    width: '100%',
-    justifyContent: 'center',
-    marginTop: '5px',
+  formTip: {
+    color: '#c4b5fd',
+    fontSize: '0.8rem',
+    lineHeight: '1.4',
+    marginBottom: '4px',
   }
 };
