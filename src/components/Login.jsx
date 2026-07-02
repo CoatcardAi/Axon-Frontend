@@ -16,6 +16,13 @@ export default function Login({ onLoginSuccess }) {
 
   const handleEmailSubmit = async (e) => {
     e.preventDefault();
+    
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(username)) {
+      setError('Please enter a valid email address.');
+      return;
+    }
+
     setLoading(true);
     setError('');
     setMessage('');
@@ -50,15 +57,21 @@ export default function Login({ onLoginSuccess }) {
 
   const handleSignupSubmit = async (e) => {
     e.preventDefault();
-    setLoading(true);
-    setError('');
-    setMessage('');
+    
+    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/;
+    if (!passwordRegex.test(password)) {
+      setError('Password must be at least 8 characters long and contain at least one uppercase letter, one lowercase letter, one number, and one special character.');
+      return;
+    }
 
     if (password !== confirmPassword) {
-      setLoading(false);
       setError('Passwords do not match.');
       return;
     }
+
+    setLoading(true);
+    setError('');
+    setMessage('');
 
     try {
       const response = await fetch(`${baseUrl}/api/v1/auth/register`, {
