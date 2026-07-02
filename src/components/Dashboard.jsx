@@ -48,7 +48,7 @@ export default function Dashboard({ token, username, roles, onLogout }) {
   const [showKeyForm, setShowKeyForm] = useState(false);
 
   const [modelForm, setModelForm] = useState({
-    id: '', provider: 'openai', name: '', displayName: '', active: true
+    id: '', provider: 'openai', name: '', displayName: '', active: true, priority: 1
   });
   const [isEditingModel, setIsEditingModel] = useState(false);
   const [showModelForm, setShowModelForm] = useState(false);
@@ -398,10 +398,20 @@ export default function Dashboard({ token, username, roles, onLogout }) {
       if (!response) return;
       if (!response.ok) throw new Error('Failed to save AI model');
       
+      const savedModel = await response.json();
+      
       triggerAlert('success', `Model successfully ${isEditingModel ? 'updated' : 'created'}!`);
       setShowModelForm(false);
       setIsEditingModel(false);
-      setModelForm({ id: '', provider: 'openai', name: '', displayName: '', active: true });
+      setModelForm({ id: '', provider: 'openai', name: '', displayName: '', active: true, priority: 1 });
+      
+      // Update local state immediately for instant feedback
+      if (isEditingModel) {
+        setModelsList(prev => prev.map(m => m.id === savedModel.id ? savedModel : m));
+      } else {
+        setModelsList(prev => [...prev, savedModel]);
+      }
+      
       loadData();
     } catch (err) {
       triggerAlert('error', err.message);
@@ -414,7 +424,8 @@ export default function Dashboard({ token, username, roles, onLogout }) {
       provider: model.provider,
       name: model.name,
       displayName: model.displayName,
-      active: model.active
+      active: model.active,
+      priority: model.priority !== undefined ? model.priority : 1
     });
     setIsEditingModel(true);
     setShowModelForm(true);
@@ -429,6 +440,11 @@ export default function Dashboard({ token, username, roles, onLogout }) {
       if (!response) return;
       if (!response.ok) throw new Error('Failed to delete model');
       triggerAlert('success', 'Model deleted.');
+      
+      // Update local state immediately for instant feedback
+      setModelsList(prev => prev.filter(m => m.id !== id));
+      setMappingsList(prev => prev.filter(m => m.modelId !== id));
+      
       loadData();
     } catch (err) {
       triggerAlert('error', err.message);
@@ -440,11 +456,18 @@ export default function Dashboard({ token, username, roles, onLogout }) {
       const response = await fetchWithAuth(`${BASE_URL}/api/v1/admin/models/${model.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...model, active: !model.active })
+        body: JSON.stringify({ ...model, active: !model.active, enabled: !model.active })
       });
       if (!response) return;
       if (!response.ok) throw new Error('Failed to toggle model status');
+      
+      const updatedModel = await response.json();
+      
       triggerAlert('success', `Model '${model.displayName}' successfully ${!model.active ? 'enabled' : 'disabled'}!`);
+      
+      // Update local state immediately for instant feedback
+      setModelsList(prev => prev.map(m => m.id === updatedModel.id ? updatedModel : m));
+      
       loadData();
     } catch (err) {
       triggerAlert('error', err.message);
@@ -1228,6 +1251,14 @@ export default function Dashboard({ token, username, roles, onLogout }) {
                         <option value="cohere">Cohere</option>
                       </select>
                     </div>
+                    <div>
+                      <label style={styles.formLabel}>Priority</label>
+                      <input 
+                        type="number" required className="input-field" 
+                        value={modelForm.priority} onChange={e => setModelForm({...modelForm, priority: parseInt(e.target.value) || 0})} 
+                        placeholder="e.g. 1"
+                      />
+                    </div>
                     <div style={styles.checkboxWrapper}>
                       <input 
                         type="checkbox" id="activeModel" 
@@ -1241,7 +1272,7 @@ export default function Dashboard({ token, username, roles, onLogout }) {
                     <button type="submit" className="btn btn-success">Save Model</button>
                     <button 
                       type="button" className="btn btn-secondary" 
-                      onClick={() => { setShowModelForm(false); setIsEditingModel(false); }}
+                      onClick={() => { setShowModelForm(false); setIsEditingModel(false); setModelForm({ id: '', provider: 'openai', name: '', displayName: '', active: true, priority: 1 }); }}
                     >
                       Cancel
                     </button>
@@ -1303,6 +1334,9 @@ export default function Dashboard({ token, username, roles, onLogout }) {
                       </div>
                       <h3 style={styles.modelNameText}>{m.displayName}</h3>
                       <code style={styles.modelCode}>{m.name}</code>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '10px' }}>
+                        <span style={{ fontSize: '0.78rem', color: '#94a3b8' }}>Priority: <strong>{m.priority !== undefined ? m.priority : 0}</strong></span>
+                      </div>
                       
                       {isAdmin && (
                         <div style={styles.modelActionsFooter}>
