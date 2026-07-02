@@ -16,6 +16,7 @@ const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
 export default function Dashboard({ token, username, roles, onLogout }) {
   const isAdmin = roles.includes('ROLE_ADMIN');
   const [activeTab, setActiveTab] = useState(isAdmin ? 'keys' : 'sandbox');
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [healthData, setHealthData] = useState(null);
   const [keysList, setKeysList] = useState([]);
   const [modelsList, setModelsList] = useState([]);
@@ -539,67 +540,12 @@ export default function Dashboard({ token, username, roles, onLogout }) {
         loadData={loadData}
         onLogout={onLogout}
         healthData={healthData}
+        isSidebarOpen={isSidebarOpen}
+        toggleSidebar={() => setIsSidebarOpen(prev => !prev)}
         styles={styles}
       />
 
-      {/* System Health Metric Bar (Admin) */}
-      {isAdmin && healthData && (
-        <section style={styles.metricsBar}>
-          
-          <div className="glass-container" style={styles.metricCard}>
-            <div style={{...styles.metricIconBox, background: 'rgba(16, 185, 129, 0.1)'}}><Zap size={20} color="#10b981" /></div>
-            <div>
-              <div style={{...styles.metricVal, color: '#10b981'}}>{healthData.activeKeys}</div>
-              <div style={styles.metricLabel}>Active Keys</div>
-            </div>
-          </div>
-          <div className="glass-container" style={styles.metricCard}>
-            <div style={{...styles.metricIconBox, background: 'rgba(245, 158, 11, 0.1)'}}><Flame size={20} color="#f59e0b" /></div>
-            <div>
-              <div style={{...styles.metricVal, color: '#f59e0b'}}>{healthData.cooldownKeys}</div>
-              <div style={styles.metricLabel}>In Cooldown</div>
-            </div>
-          </div>
-          <div className="glass-container" style={styles.metricCard}>
-            <div style={{...styles.metricIconBox, background: 'rgba(168, 85, 247, 0.1)'}}><Clock size={20} color="#a855f7" /></div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
-                <span style={styles.metricVal}>
-                  {logsList.length > 0 ? `${Math.round(logsList.reduce((acc, l) => acc + l.latencyMs, 0) / logsList.length)}ms` : '0ms'}
-                </span>
-                {logsList.length > 0 && (
-                  <svg width="70" height="24" style={{ overflow: 'visible' }}>
-                    <path d={getSparklinePath()} fill="none" stroke="#a855f7" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                )}
-              </div>
-              <div style={styles.metricLabel}>Avg Latency (Trend)</div>
-            </div>
-          </div>
-          <div className="glass-container" style={{ ...styles.metricCard, minWidth: '0' }}>
-            <div style={{...styles.metricIconBox, background: healthData.redisStatus === 'CONNECTED' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)', flexShrink: 0 }}>
-              <Database size={20} color={healthData.redisStatus === 'CONNECTED' ? '#10b981' : '#ef4444'} />
-            </div>
-            <div style={{ minWidth: '0', overflow: 'hidden' }}>
-              <div style={{...styles.metricVal, color: healthData.redisStatus === 'CONNECTED' ? '#10b981' : '#ef4444', fontSize: '1.15rem', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden'}}>
-                {healthData.redisStatus || 'UNKNOWN'}
-              </div>
-              <div style={{ ...styles.metricLabel, whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>Redis: {healthData.redisCachedPairsCount || 0} cached</div>
-            </div>
-          </div>
-          <div className="glass-container" style={{ ...styles.metricCard, minWidth: '0' }}>
-            <div style={{...styles.metricIconBox, background: healthData.mongoSyncStatus === 'SYNCHRONIZED' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(245, 158, 11, 0.1)', flexShrink: 0 }}>
-              <Shield size={20} color={healthData.mongoSyncStatus === 'SYNCHRONIZED' ? '#10b981' : '#f59e0b'} />
-            </div>
-            <div style={{ minWidth: '0', overflow: 'hidden' }}>
-              <div style={{...styles.metricVal, color: healthData.mongoSyncStatus === 'SYNCHRONIZED' ? '#10b981' : '#f59e0b', fontSize: '1.15rem', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden'}}>
-                {healthData.mongoSyncStatus || 'UNKNOWN'}
-              </div>
-              <div style={{ ...styles.metricLabel, whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>Mongo: {healthData.mongoStatus || 'UNKNOWN'}</div>
-            </div>
-          </div>
-        </section>
-      )}
+
 
       {/* Developer API Status Metric Bar (Client) */}
       {!isAdmin && (
@@ -642,9 +588,18 @@ export default function Dashboard({ token, username, roles, onLogout }) {
       )}
 
       {/* Tabs Content Layout */}
-      <div className="tab-content-layout">
+      <div 
+        className="tab-content-layout" 
+        style={{ 
+          gridTemplateColumns: isSidebarOpen ? '260px 1fr' : '1fr', 
+          gap: isSidebarOpen ? '24px' : '0px',
+          transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
+        }}
+      >
         {/* Navigation Sidebar */}
-        <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} isAdmin={isAdmin} styles={styles} />
+        {isSidebarOpen && (
+          <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} isAdmin={isAdmin} styles={styles} />
+        )}
 
         {/* Main Work Content Panel */}
         <main className="glass-container" style={styles.mainPanel}>
@@ -710,7 +665,12 @@ export default function Dashboard({ token, username, roles, onLogout }) {
           )}
 
           {activeTab === 'analytics' && (
-            <AnalyticsTab logsList={logsList} styles={styles} />
+            <AnalyticsTab 
+              logsList={logsList} 
+              healthData={healthData} 
+              getSparklinePath={getSparklinePath}
+              styles={styles} 
+            />
           )}
 
           {activeTab === 'logs' && (

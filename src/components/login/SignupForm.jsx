@@ -8,6 +8,10 @@ export default function SignupForm({
   setPassword,
   confirmPassword,
   setConfirmPassword,
+  age,
+  setAge,
+  gender,
+  setGender,
   loading,
   handleSignupSubmit,
   resetForm,
@@ -33,6 +37,44 @@ export default function SignupForm({
             disabled={loading}
             style={styles.inputPadding}
           />
+        </div>
+      </div>
+
+      <div style={styles.inputGroup}>
+        <label style={styles.label}>Age</label>
+        <div style={styles.inputWrapper}>
+          <input
+            type="number"
+            className="input-field"
+            placeholder="Enter your age"
+            value={age}
+            onChange={(e) => setAge(e.target.value)}
+            required
+            disabled={loading}
+            min="1"
+            max="120"
+            style={{ paddingLeft: '14px' }}
+          />
+        </div>
+      </div>
+
+      <div style={styles.inputGroup}>
+        <label style={styles.label}>Gender</label>
+        <div style={styles.inputWrapper}>
+          <select
+            className="input-field"
+            value={gender}
+            onChange={(e) => setGender(e.target.value)}
+            required
+            disabled={loading}
+            style={{ paddingLeft: '14px', background: '#0e0e18', color: '#fff' }}
+          >
+            <option value="">Select Gender</option>
+            <option value="Male">Male</option>
+            <option value="Female">Female</option>
+            <option value="Other">Other</option>
+            <option value="Prefer not to say">Prefer not to say</option>
+          </select>
         </div>
       </div>
 

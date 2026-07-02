@@ -11,6 +11,8 @@ export default function Login({ onLoginSuccess }) {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [otp, setOtp] = useState('');
+  const [age, setAge] = useState('');
+  const [gender, setGender] = useState('');
 
   // Steps: 'email', 'login-password', 'signup', 'otp' (register verification), 'forgot-otp'
   const [step, setStep] = useState('email');
@@ -107,7 +109,12 @@ export default function Login({ onLoginSuccess }) {
       const response = await fetch(`${baseUrl}/api/v1/auth/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password })
+        body: JSON.stringify({ 
+          username, 
+          password, 
+          age: age ? parseInt(age) : null, 
+          gender: gender || null 
+        })
       });
 
       const data = await response.json();
@@ -209,6 +216,8 @@ export default function Login({ onLoginSuccess }) {
     setPassword('');
     setConfirmPassword('');
     setOtp('');
+    setAge('');
+    setGender('');
     setMessage('');
     setError('');
   };
@@ -323,6 +332,10 @@ export default function Login({ onLoginSuccess }) {
                 setPassword={setPassword}
                 confirmPassword={confirmPassword}
                 setConfirmPassword={setConfirmPassword}
+                age={age}
+                setAge={setAge}
+                gender={gender}
+                setGender={setGender}
                 loading={loading}
                 handleSignupSubmit={handleSignupSubmit}
                 resetForm={resetForm}

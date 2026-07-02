@@ -60,7 +60,7 @@ export default function ProfileTab({ username, roles, styles }) {
   };
 
   return (
-    <div style={{ maxWidth: '600px', margin: '0 auto', textAlign: 'left' }} className="animate-fade-in">
+    <div style={{ width: '100%', textAlign: 'left' }} className="animate-fade-in">
       <div style={styles.tabHeader}>
         <div>
           <h2 style={styles.tabTitle}>Profile & Credentials Settings</h2>

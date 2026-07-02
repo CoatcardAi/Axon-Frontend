@@ -1,5 +1,5 @@
 import React from 'react';
-import { RefreshCw, LogOut, Shield, ShieldAlert, Activity, Cpu } from 'lucide-react';
+import { RefreshCw, LogOut, Shield, ShieldAlert, Activity, Cpu, Menu } from 'lucide-react';
 
 export default function Header({
   username,
@@ -9,14 +9,25 @@ export default function Header({
   loadData,
   onLogout,
   healthData,
+  isSidebarOpen,
+  toggleSidebar,
   styles,
 }) {
   return (
     <header className="glass-container" style={styles.header}>
-      <div>
-        <h1 style={styles.headerTitle} className="glow-text">
-          {isAdmin ? 'Axon Core Gateway' : 'Axon DevPortal'}
-        </h1>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+        <button
+          onClick={toggleSidebar}
+          className="btn btn-secondary"
+          style={{ padding: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(255,255,255,0.03)' }}
+          title={isSidebarOpen ? 'Hide Sidebar' : 'Show Sidebar'}
+        >
+          <Menu size={18} />
+        </button>
+        <div>
+          <h1 style={styles.headerTitle} className="glow-text">
+            {isAdmin ? 'Axon Core Gateway' : 'Axon DevPortal'}
+          </h1>
         <div style={styles.headerSubtitle}>
           Signed in as <strong>{username}</strong>{' '}
           <span
@@ -30,6 +41,7 @@ export default function Header({
             {roles[0]?.replace('ROLE_', '')}
           </span>
         </div>
+      </div>
       </div>
 
       <div style={styles.headerActions}>

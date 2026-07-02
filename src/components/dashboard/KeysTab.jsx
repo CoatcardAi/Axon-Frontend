@@ -207,7 +207,6 @@ export default function KeysTab({
               <th style={styles.th}>API Key</th>
               <th style={styles.th}>Status</th>
               <th style={styles.th}>Limits (RPM/TPM)</th>
-              <th style={styles.th}>Models Supported</th>
               <th style={styles.th}>Actions</th>
             </tr>
           </thead>
@@ -234,7 +233,7 @@ export default function KeysTab({
               if (filtered.length === 0) {
                 return (
                   <tr>
-                    <td colSpan="6" style={{ textAlign: 'center', padding: '20px', color: '#64748b' }}>
+                    <td colSpan="5" style={{ textAlign: 'center', padding: '20px', color: '#64748b' }}>
                       No keys found matching filter criteria.
                     </td>
                   </tr>
@@ -285,15 +284,6 @@ export default function KeysTab({
                       <div style={{ fontSize: '0.82rem' }}>{k.limitRpm} RPM</div>
                       <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>
                         {k.limitTpm.toLocaleString()} TPM
-                      </div>
-                    </td>
-                    <td style={styles.td}>
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', maxWidth: '200px' }}>
-                        {(k.allowedModels || k.models || []).map((m) => (
-                          <span key={m} style={styles.miniTag}>
-                            {m}
-                          </span>
-                        ))}
                       </div>
                     </td>
                     <td style={styles.td}>
