@@ -69,11 +69,17 @@ export default function Dashboard({ token, username, roles, onLogout }) {
   // Helper to quick toggle active state of key
   const handleToggleKeyActive = async (key) => {
     if (!isAdmin) return;
+    const newActive = !key.active;
     const updatedPayload = {
       ...key,
-      active: !key.active,
+      active: newActive,
+      status: newActive ? 'ACTIVE' : 'DISABLED',
       keyValue: ''
     };
+    
+    // Optimistically update frontend state
+    setKeysList(prev => prev.map(k => k.id === key.id ? { ...k, active: newActive, status: newActive ? 'ACTIVE' : 'DISABLED' } : k));
+    
     try {
       const response = await fetchWithAuth(`${BASE_URL}/api/v1/admin/keys/${key.id}`, {
         method: 'PUT',
@@ -83,9 +89,11 @@ export default function Dashboard({ token, username, roles, onLogout }) {
         body: JSON.stringify(updatedPayload)
       });
       if (response && response.ok) {
-        triggerAlert('success', `Key '${key.name}' is now ${!key.active ? 'Active' : 'Inactive'}.`);
+        triggerAlert('success', `Key '${key.name}' is now ${newActive ? 'Active' : 'Inactive'}.`);
         loadData();
       } else {
+        // Rollback state if failed
+        setKeysList(prev => prev.map(k => k.id === key.id ? key : k));
         throw new Error('Failed to update key status');
       }
     } catch (err) {
@@ -114,6 +122,9 @@ export default function Dashboard({ token, username, roles, onLogout }) {
   // Authenticated fetch wrapper to automatically handle 401 token expirations
   const fetchWithAuth = useCallback(async (url, options = {}) => {
     const headers = {
+      'Cache-Control': 'no-cache',
+      'Pragma': 'no-cache',
+      'Expires': '0',
       ...options.headers,
       'Authorization': `Bearer ${token}`
     };
@@ -236,6 +247,7 @@ export default function Dashboard({ token, username, roles, onLogout }) {
 
     const payload = {
       ...keyForm,
+      status: keyForm.active ? 'ACTIVE' : 'DISABLED',
       models: keyForm.models.split(',').map(m => m.trim()).filter(Boolean)
     };
 
@@ -251,6 +263,8 @@ export default function Dashboard({ token, username, roles, onLogout }) {
       if (!response) return;
       if (!response.ok) throw new Error('Failed to save API key');
       
+      const savedKey = await response.json();
+      
       triggerAlert('success', `Key successfully ${isEditingKey ? 'updated' : 'created'}!`);
       setShowKeyForm(false);
       setIsEditingKey(false);
@@ -259,6 +273,29 @@ export default function Dashboard({ token, username, roles, onLogout }) {
         models: '', limitRpm: 60, limitTpm: 100000, 
         cooldownDurationSeconds: 15, active: true
       });
+
+      if (isEditingKey) {
+        setKeysList(prev => prev.map(k => k.id === savedKey.id ? savedKey : k));
+        setHealthData(prev => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            keyHealths: (prev.keyHealths || []).map(kh => {
+              if (kh.id === savedKey.id) {
+                return {
+                  ...kh,
+                  name: savedKey.name,
+                  provider: savedKey.provider,
+                  limitRpm: savedKey.limitRpm,
+                  limitTpm: savedKey.limitTpm,
+                  cooldownDurationSeconds: savedKey.cooldownDurationSeconds
+                };
+              }
+              return kh;
+            })
+          };
+        });
+      }
       loadData();
     } catch (err) {
       triggerAlert('error', err.message);
@@ -290,6 +327,18 @@ export default function Dashboard({ token, username, roles, onLogout }) {
       if (!response) return;
       if (!response.ok) throw new Error('Failed to delete key');
       triggerAlert('success', 'Key deleted.');
+      
+      // Update local state immediately
+      setKeysList(prev => prev.filter(k => k.id !== id));
+      setHealthData(prev => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          keyHealths: (prev.keyHealths || []).filter(k => k.id !== id),
+          totalKeys: Math.max(0, (prev.totalKeys || 1) - 1)
+        };
+      });
+      
       loadData();
     } catch (err) {
       triggerAlert('error', err.message);
