@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { 
   Key, Database, FileText, Send, Plus, Trash2, Edit2, 
   RefreshCw, Power, Flame, Zap, Shield, Play, LogOut, Check, X, ShieldAlert,
-  Copy, ChevronRight, Info, Clock
+  Copy, ChevronRight, Info, Clock, Link2
 } from 'lucide-react';
 
 const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
@@ -14,10 +14,25 @@ export default function Dashboard({ token, username, roles, onLogout }) {
   const [keysList, setKeysList] = useState([]);
   const [modelsList, setModelsList] = useState([]);
   const [logsList, setLogsList] = useState([]);
+  const [mappingsList, setMappingsList] = useState([]);
+  
+  // Mapping forms state
+  const [showMappingForm, setShowMappingForm] = useState(false);
+  const [mappingForm, setMappingForm] = useState({ keyId: '', modelId: '' });
   
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+
+  // Search, filtering, sorting states
+  const [keySearch, setKeySearch] = useState('');
+  const [keyProviderFilter, setKeyProviderFilter] = useState('');
+  const [keyStatusFilter, setKeyStatusFilter] = useState('');
+  const [keySortField, setKeySortField] = useState('name');
+  const [keySortOrder, setKeySortOrder] = useState('asc');
+
+  const [modelSearch, setModelSearch] = useState('');
+  const [modelProviderFilter, setModelProviderFilter] = useState('');
 
   // UI state enhancers
   const [copiedId, setCopiedId] = useState('');
@@ -167,12 +182,25 @@ export default function Dashboard({ token, username, roles, onLogout }) {
     }
   }, [fetchWithAuth]);
 
+  // Fetch mappings
+  const fetchMappings = useCallback(async () => {
+    try {
+      const response = await fetchWithAuth(`${BASE_URL}/api/v1/admin/mappings`);
+      if (response && response.ok) {
+        const data = await response.json();
+        setMappingsList(data);
+      }
+    } catch (err) {
+      console.error("Error fetching mappings", err);
+    }
+  }, [fetchWithAuth]);
+
   const loadData = useCallback(() => {
     if (!isAdmin) return;
     setLoading(true);
-    Promise.all([fetchHealth(), fetchKeys(), fetchModels(), fetchLogs()])
+    Promise.all([fetchHealth(), fetchKeys(), fetchModels(), fetchLogs(), fetchMappings()])
       .finally(() => setLoading(false));
-  }, [isAdmin, fetchHealth, fetchKeys, fetchModels, fetchLogs]);
+  }, [isAdmin, fetchHealth, fetchKeys, fetchModels, fetchLogs, fetchMappings]);
 
   useEffect(() => {
     if (isAdmin) {
@@ -181,10 +209,11 @@ export default function Dashboard({ token, username, roles, onLogout }) {
       const interval = setInterval(() => {
         fetchHealth();
         fetchLogs();
+        fetchMappings();
       }, 10000);
       return () => clearInterval(interval);
     }
-  }, [isAdmin, loadData, fetchHealth, fetchLogs]);
+  }, [isAdmin, loadData, fetchHealth, fetchLogs, fetchMappings]);
 
   // Alert handler
   const triggerAlert = (type, msg) => {
@@ -357,6 +386,135 @@ export default function Dashboard({ token, username, roles, onLogout }) {
     }
   };
 
+  const handleToggleModelActive = async (model) => {
+    try {
+      const response = await fetchWithAuth(`${BASE_URL}/api/v1/admin/models/${model.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...model, active: !model.active })
+      });
+      if (!response) return;
+      if (!response.ok) throw new Error('Failed to toggle model status');
+      triggerAlert('success', `Model '${model.displayName}' successfully ${!model.active ? 'enabled' : 'disabled'}!`);
+      loadData();
+    } catch (err) {
+      triggerAlert('error', err.message);
+    }
+  };
+
+  // --- Key-Model Mapping Actions ---
+  const handleMappingSubmit = async (e) => {
+    e.preventDefault();
+    if (!mappingForm.keyId || !mappingForm.modelId) {
+      triggerAlert('error', 'Please select both a key and a model.');
+      return;
+    }
+    try {
+      const response = await fetchWithAuth(`${BASE_URL}/api/v1/admin/mappings`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(mappingForm)
+      });
+      if (!response) return;
+      if (!response.ok) {
+        const errData = await response.json();
+        throw new Error(errData.message || 'Failed to create mapping');
+      }
+      triggerAlert('success', 'Mapping created successfully!');
+      setShowMappingForm(false);
+      setMappingForm({ keyId: '', modelId: '' });
+      loadData();
+    } catch (err) {
+      triggerAlert('error', err.message);
+    }
+  };
+
+  const handleDeleteMapping = async (id) => {
+    if (!window.confirm("Are you sure you want to remove this mapping?")) return;
+    try {
+      const response = await fetchWithAuth(`${BASE_URL}/api/v1/admin/mappings/${id}`, {
+        method: 'DELETE'
+      });
+      if (!response) return;
+      if (!response.ok) throw new Error('Failed to delete mapping');
+      triggerAlert('success', 'Mapping removed.');
+      loadData();
+    } catch (err) {
+      triggerAlert('error', err.message);
+    }
+  };
+
+  // Helper to aggregate logs for charts
+  const getAnalytics = () => {
+    const totalRequests = logsList.length;
+    if (totalRequests === 0) {
+      return null;
+    }
+    
+    let successCount = 0;
+    let failureCount = 0;
+    const requestsPerKey = {};
+    const requestsPerModel = {};
+    const errorDistribution = {
+      '429 (Rate Limit)': 0,
+      '5xx / 503 (Provider)': 0,
+      '401 / 403 (Auth)': 0,
+      '504 / Timeout': 0,
+      '400 / Client Error': 0,
+      'Other Errors': 0
+    };
+
+    logsList.forEach(log => {
+      if (log.status === 'SUCCESS') {
+        successCount++;
+      } else {
+        failureCount++;
+        const code = log.errorCode || '';
+        const status = log.status || '';
+        if (code === '429' || status === 'RATE_LIMIT_ERROR') {
+          errorDistribution['429 (Rate Limit)']++;
+        } else if (code === '401' || code === '403' || status === 'UNAUTHORIZED' || status === 'FORBIDDEN') {
+          errorDistribution['401 / 403 (Auth)']++;
+        } else if (code === '504' || status === 'TIMEOUT_ERROR' || (log.errorMessage && log.errorMessage.toLowerCase().includes('timeout'))) {
+          errorDistribution['504 / Timeout']++;
+        } else if (code === '400' || status === 'CLIENT_ERROR') {
+          errorDistribution['400 / Client Error']++;
+        } else if (code.startsWith('5') || status === 'PROVIDER_ERROR') {
+          errorDistribution['5xx / 503 (Provider)']++;
+        } else {
+          errorDistribution['Other Errors']++;
+        }
+      }
+
+      const key = log.keyName || 'Unknown Key';
+      requestsPerKey[key] = (requestsPerKey[key] || 0) + 1;
+
+      const model = log.model || 'Unknown Model';
+      requestsPerModel[model] = (requestsPerModel[model] || 0) + 1;
+    });
+
+    return {
+      totalRequests,
+      successCount,
+      failureCount,
+      successRate: ((successCount / totalRequests) * 100).toFixed(1),
+      requestsPerKey,
+      requestsPerModel,
+      errorDistribution
+    };
+  };
+
+  const getRelatedAttempts = (log) => {
+    if (!log || !log.timestamp) return [];
+    const logTime = new Date(log.timestamp).getTime();
+    return logsList.filter(l => 
+      l.id !== log.id && 
+      l.model === log.model && 
+      l.provider === log.provider && 
+      Math.abs(new Date(l.timestamp).getTime() - logTime) < 10000
+    ).sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+  };
+
   // --- Sandbox / Proxy Test ---
   const handleSandboxSubmit = async (e) => {
     e.preventDefault();
@@ -458,6 +616,28 @@ export default function Dashboard({ token, username, roles, onLogout }) {
               <div style={styles.metricLabel}>Avg Latency (Trend)</div>
             </div>
           </div>
+          <div className="glass-container" style={styles.metricCard}>
+            <div style={{...styles.metricIconBox, background: healthData.redisStatus === 'CONNECTED' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)'}}>
+              <Database size={20} color={healthData.redisStatus === 'CONNECTED' ? '#10b981' : '#ef4444'} />
+            </div>
+            <div>
+              <div style={{...styles.metricVal, color: healthData.redisStatus === 'CONNECTED' ? '#10b981' : '#ef4444', fontSize: '1.4rem'}}>
+                {healthData.redisStatus || 'UNKNOWN'}
+              </div>
+              <div style={styles.metricLabel}>Redis: {healthData.redisCachedPairsCount || 0} cached</div>
+            </div>
+          </div>
+          <div className="glass-container" style={styles.metricCard}>
+            <div style={{...styles.metricIconBox, background: healthData.mongoSyncStatus === 'SYNCHRONIZED' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(245, 158, 11, 0.1)'}}>
+              <Shield size={20} color={healthData.mongoSyncStatus === 'SYNCHRONIZED' ? '#10b981' : '#f59e0b'} />
+            </div>
+            <div>
+              <div style={{...styles.metricVal, color: healthData.mongoSyncStatus === 'SYNCHRONIZED' ? '#10b981' : '#f59e0b', fontSize: '1.4rem'}}>
+                {healthData.mongoSyncStatus || 'UNKNOWN'}
+              </div>
+              <div style={styles.metricLabel}>Mongo Sync: {healthData.mongoStatus || 'UNKNOWN'}</div>
+            </div>
+          </div>
         </section>
       )}
 
@@ -502,7 +682,7 @@ export default function Dashboard({ token, username, roles, onLogout }) {
       )}
 
       {/* Tabs Layout */}
-      <div style={styles.tabContentLayout}>
+      <div className="tab-content-layout">
         {/* Navigation Sidebar */}
         <aside className="glass-container" style={styles.sidebar}>
           {isAdmin ? (
@@ -521,6 +701,22 @@ export default function Dashboard({ token, username, roles, onLogout }) {
               >
                 <Database size={18} />
                 <span>AI Models</span>
+              </button>
+
+              <button 
+                onClick={() => setActiveTab('mappings')}
+                style={activeTab === 'mappings' ? styles.sidebarBtnActive : styles.sidebarBtn}
+              >
+                <Link2 size={18} />
+                <span>Mappings</span>
+              </button>
+
+              <button 
+                onClick={() => setActiveTab('analytics')}
+                style={activeTab === 'analytics' ? styles.sidebarBtnActive : styles.sidebarBtn}
+              >
+                <Clock size={18} />
+                <span>Analytics</span>
               </button>
               
               <button 
@@ -661,6 +857,55 @@ export default function Dashboard({ token, username, roles, onLogout }) {
                 </form>
               )}
 
+              {/* Search & Filter Row */}
+              <div style={styles.filterRow}>
+                <div style={styles.filterGroup}>
+                  <input 
+                    type="text" className="input-field" style={styles.searchInput}
+                    placeholder="Search keys by name..." 
+                    value={keySearch} onChange={e => setKeySearch(e.target.value)}
+                  />
+                  <select 
+                    className="input-field" style={styles.filterSelect}
+                    value={keyProviderFilter} onChange={e => setKeyProviderFilter(e.target.value)}
+                  >
+                    <option value="">All Providers</option>
+                    <option value="openai">OpenAI</option>
+                    <option value="anthropic">Anthropic</option>
+                    <option value="gemini">Google Gemini</option>
+                    <option value="cohere">Cohere</option>
+                  </select>
+                  <select 
+                    className="input-field" style={styles.filterSelect}
+                    value={keyStatusFilter} onChange={e => setKeyStatusFilter(e.target.value)}
+                  >
+                    <option value="">All Statuses</option>
+                    <option value="active">Eligible / Active</option>
+                    <option value="cooldown">In Cooldown</option>
+                    <option value="inactive">Inactive</option>
+                  </select>
+                </div>
+                <div style={styles.filterGroup}>
+                  <span style={styles.sortLabel}>Sort By:</span>
+                  <select 
+                    className="input-field" style={styles.filterSelect}
+                    value={keySortField} onChange={e => setKeySortField(e.target.value)}
+                  >
+                    <option value="name">Name</option>
+                    <option value="provider">Provider</option>
+                    <option value="healthScore">Health Score</option>
+                    <option value="lastUsed">Last Used Time</option>
+                  </select>
+                  <button 
+                    type="button"
+                    className="btn btn-secondary" style={styles.sortOrderBtn}
+                    onClick={() => setKeySortOrder(prev => prev === 'asc' ? 'desc' : 'asc')}
+                  >
+                    {keySortOrder === 'asc' ? '↑ Asc' : '↓ Desc'}
+                  </button>
+                </div>
+              </div>
+
               {/* Table */}
               <div style={styles.tableWrapper}>
                 <table style={styles.table}>
@@ -669,6 +914,8 @@ export default function Dashboard({ token, username, roles, onLogout }) {
                       <th style={styles.th}>Name</th>
                       <th style={styles.th}>Provider</th>
                       <th style={styles.th}>Status / Toggle</th>
+                      <th style={styles.th}>Health & Usage</th>
+                      <th style={styles.th}>Last Used</th>
                       <th style={styles.th}>Models</th>
                       <th style={styles.th}>Remaining (RPM / TPM)</th>
                       <th style={styles.th}>Concurrency</th>
@@ -676,134 +923,207 @@ export default function Dashboard({ token, username, roles, onLogout }) {
                     </tr>
                   </thead>
                   <tbody>
-                    {healthData?.keyHealths?.map(k => {
-                      const matchingKey = keysList.find(key => key.id === k.id);
-                      const displayKeyVal = matchingKey?.keyValue || 'sk-••••...••••';
-                      return (
-                        <tr key={k.id} style={styles.tr}>
-                          <td style={styles.td}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                              <div style={styles.boldText}>{k.name}</div>
-                              <button 
-                                type="button" 
-                                onClick={() => handleCopyToClipboard(k.name, `name-${k.id}`)}
-                                style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: '2px', display: 'inline-flex', color: '#64748b' }}
-                                title="Copy Name"
-                              >
-                                {copiedId === `name-${k.id}` ? <Check size={12} color="#10b981" /> : <Copy size={12} />}
-                              </button>
-                            </div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px' }}>
-                              <code style={styles.miniKey}>{displayKeyVal}</code>
-                              {matchingKey?.keyValue && (
+                    {(() => {
+                      const filteredKeys = (healthData?.keyHealths || []).filter(k => {
+                        const matchingKey = keysList.find(key => key.id === k.id);
+                        if (keySearch && !k.name.toLowerCase().includes(keySearch.toLowerCase())) return false;
+                        if (keyProviderFilter && k.provider !== keyProviderFilter) return false;
+                        if (keyStatusFilter) {
+                          if (keyStatusFilter === 'cooldown' && !k.inCooldown) return false;
+                          if (keyStatusFilter === 'inactive' && matchingKey && matchingKey.active) return false;
+                          if (keyStatusFilter === 'active' && (k.inCooldown || (matchingKey && !matchingKey.active))) return false;
+                        }
+                        return true;
+                      }).sort((a, b) => {
+                        let valA, valB;
+                        if (keySortField === 'name') {
+                          valA = a.name.toLowerCase();
+                          valB = b.name.toLowerCase();
+                        } else if (keySortField === 'provider') {
+                          valA = a.provider.toLowerCase();
+                          valB = b.provider.toLowerCase();
+                        } else if (keySortField === 'healthScore') {
+                          valA = a.healthScore;
+                          valB = b.healthScore;
+                        } else if (keySortField === 'lastUsed') {
+                          valA = a.lastUsed;
+                          valB = b.lastUsed;
+                        }
+                        if (valA < valB) return keySortOrder === 'asc' ? -1 : 1;
+                        if (valA > valB) return keySortOrder === 'asc' ? 1 : -1;
+                        return 0;
+                      });
+
+                      if (filteredKeys.length === 0) {
+                        return (
+                          <tr style={styles.tr}>
+                            <td colSpan="9" style={{...styles.td, textAlign: 'center', color: '#64748b', padding: '40px'}}>
+                              No API keys found matching search or filter filters.
+                            </td>
+                          </tr>
+                        );
+                      }
+
+                      return filteredKeys.map(k => {
+                        const matchingKey = keysList.find(key => key.id === k.id);
+                        const displayKeyVal = matchingKey?.keyValue || 'sk-••••...••••';
+                        return (
+                          <tr key={k.id} style={styles.tr}>
+                            <td style={styles.td}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <div style={styles.boldText}>{k.name}</div>
                                 <button 
                                   type="button" 
-                                  onClick={() => handleCopyToClipboard(matchingKey.keyValue, `val-${k.id}`)}
+                                  onClick={() => handleCopyToClipboard(k.name, `name-${k.id}`)}
                                   style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: '2px', display: 'inline-flex', color: '#64748b' }}
-                                  title="Copy Key Value"
+                                  title="Copy Name"
                                 >
-                                  {copiedId === `val-${k.id}` ? <Check size={12} color="#10b981" /> : <Copy size={12} />}
+                                  {copiedId === `name-${k.id}` ? <Check size={12} color="#10b981" /> : <Copy size={12} />}
                                 </button>
-                              )}
-                            </div>
-                          </td>
-                          <td style={styles.td}>
-                            <span style={styles.providerTag}>{k.provider.toUpperCase()}</span>
-                          </td>
-                          <td style={styles.td}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                              {matchingKey && (
-                                <label className="switch" title={isAdmin ? "Toggle Key Enabled/Disabled" : "Admin access required"}>
-                                  <input 
-                                    type="checkbox" 
-                                    checked={matchingKey.active} 
-                                    onChange={() => handleToggleKeyActive(matchingKey)}
-                                    disabled={!isAdmin}
-                                  />
-                                  <span className="slider"></span>
-                                </label>
-                              )}
-                              {k.inCooldown ? (
-                                <span className="badge badge-cooldown" title={k.cooldownReason}>
-                                  <Flame size={12} /> Cooldown ({k.remainingCooldownSeconds}s)
-                                </span>
-                              ) : matchingKey && !matchingKey.active ? (
-                                <span className="badge badge-inactive">Inactive</span>
-                              ) : (
-                                <span className="badge badge-active"><Zap size={12} /> Eligible</span>
-                              )}
-                            </div>
-                          </td>
-                          <td style={styles.td}>
-                            <div style={styles.modelTagsContainer}>
-                              {matchingKey?.models?.map(m => (
-                                <span key={m} style={styles.miniTag}>{m}</span>
-                              ))}
-                            </div>
-                          </td>
-                          <td style={styles.td}>
-                            {matchingKey ? (
-                              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', width: '130px' }}>
-                                <div>
-                                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', color: '#94a3b8', marginBottom: '2px' }}>
-                                    <span>RPM: {k.remainingRpm}/{matchingKey.limitRpm}</span>
-                                  </div>
-                                  <svg width="100%" height="4" style={{ borderRadius: '2px', background: 'rgba(255,255,255,0.05)', display: 'block' }}>
-                                    <rect 
-                                      width={`${Math.max(0, Math.min(100, (k.remainingRpm / Math.max(matchingKey.limitRpm, 1)) * 100))}%`} 
-                                      height="4" 
-                                      fill={k.remainingRpm < matchingKey.limitRpm * 0.2 ? '#ef4444' : '#a855f7'}
-                                      style={{ transition: 'width 0.4s ease' }}
-                                    />
-                                  </svg>
-                                </div>
-                                <div>
-                                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', color: '#94a3b8', marginBottom: '2px' }}>
-                                    <span>TPM: {k.remainingTpm}/{matchingKey.limitTpm}</span>
-                                  </div>
-                                  <svg width="100%" height="4" style={{ borderRadius: '2px', background: 'rgba(255,255,255,0.05)', display: 'block' }}>
-                                    <rect 
-                                      width={`${Math.max(0, Math.min(100, (k.remainingTpm / Math.max(matchingKey.limitTpm, 1)) * 100))}%`} 
-                                      height="4" 
-                                      fill={k.remainingTpm < matchingKey.limitTpm * 0.2 ? '#ef4444' : '#3b82f6'}
-                                      style={{ transition: 'width 0.4s ease' }}
-                                    />
-                                  </svg>
-                                </div>
                               </div>
-                            ) : (
-                              <span>-</span>
-                            )}
-                          </td>
-                          <td style={styles.td}>
-                            <span style={{...styles.concurrencyIndicator, color: k.currentConcurrency > 0 ? '#a855f7' : 'inherit'}}>
-                              {k.currentConcurrency} active
-                            </span>
-                          </td>
-                          {isAdmin && (
-                            <td style={styles.td}>
-                              <div style={styles.actionBtnsGroup}>
-                                <button onClick={() => handleEditKey(matchingKey)} className="btn btn-secondary" style={styles.actionMiniBtn} title="Edit Key">
-                                  <Edit2 size={13} />
-                                </button>
-                                {k.inCooldown ? (
-                                  <button onClick={() => handleClearCooldown(k.id)} className="btn btn-success" style={styles.actionMiniBtn} title="Clear Cooldown">
-                                    <Power size={13} />
-                                  </button>
-                                ) : (
-                                  <button onClick={() => handleTriggerCooldown(k.id)} className="btn btn-danger" style={styles.actionMiniBtn} title="Force Cooldown">
-                                    <Flame size={13} />
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px' }}>
+                                <code style={styles.miniKey}>{displayKeyVal}</code>
+                                {matchingKey?.keyValue && (
+                                  <button 
+                                    type="button" 
+                                    onClick={() => handleCopyToClipboard(matchingKey.keyValue, `val-${k.id}`)}
+                                    style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: '2px', display: 'inline-flex', color: '#64748b' }}
+                                    title="Copy Key Value"
+                                  >
+                                    {copiedId === `val-${k.id}` ? <Check size={12} color="#10b981" /> : <Copy size={12} />}
                                   </button>
                                 )}
-                                <button onClick={() => handleDeleteKey(k.id)} className="btn btn-danger" style={styles.actionMiniBtn} title="Delete Key">
-                                  <Trash2 size={13} />
-                                </button>
                               </div>
                             </td>
-                          )}
-                        </tr>
-                      );
-                    })}
+                            <td style={styles.td}>
+                              <span style={styles.providerTag}>{k.provider.toUpperCase()}</span>
+                            </td>
+                            <td style={styles.td}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                {matchingKey && (
+                                  <label className="switch" title={isAdmin ? "Toggle Key Enabled/Disabled" : "Admin access required"}>
+                                    <input 
+                                      type="checkbox" 
+                                      checked={matchingKey.active} 
+                                      onChange={() => handleToggleKeyActive(matchingKey)}
+                                      disabled={!isAdmin}
+                                    />
+                                    <span className="slider"></span>
+                                  </label>
+                                )}
+                                {k.inCooldown ? (
+                                  <span className="badge badge-cooldown" title={k.cooldownReason}>
+                                    <Flame size={12} /> Cooldown ({k.remainingCooldownSeconds}s)
+                                  </span>
+                                ) : matchingKey && !matchingKey.active ? (
+                                  <span className="badge badge-inactive">Inactive</span>
+                                ) : (
+                                  <span className="badge badge-active"><Zap size={12} /> Eligible</span>
+                                )}
+                              </div>
+                            </td>
+                            <td style={styles.td}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <div style={{
+                                  color: k.healthScore >= 0.8 ? '#10b981' : k.healthScore >= 0.5 ? '#f59e0b' : '#ef4444',
+                                  fontWeight: '600',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '4px',
+                                  fontSize: '0.82rem'
+                                }}>
+                                  <Zap size={12} />
+                                  {(k.healthScore * 100).toFixed(0)}% Health
+                                </div>
+                              </div>
+                              <div style={{ fontSize: '0.72rem', color: '#94a3b8', marginTop: '4px' }}>
+                                Success: <span style={{ color: '#10b981', fontWeight: '500' }}>{k.successCount || 0}</span> | Fail: <span style={{ color: '#ef4444', fontWeight: '500' }}>{k.failureCount || 0}</span>
+                              </div>
+                            </td>
+                            <td style={styles.td}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#e2e8f0' }}>
+                                <Clock size={12} color="#64748b" />
+                                <span style={{ fontSize: '0.78rem' }}>
+                                  {k.lastUsed > 0 ? new Date(k.lastUsed).toLocaleTimeString() : 'Never'}
+                                </span>
+                              </div>
+                              {k.lastUsed > 0 && (
+                                <div style={{ fontSize: '0.68rem', color: '#64748b', marginTop: '2px' }}>
+                                  {new Date(k.lastUsed).toLocaleDateString()}
+                                </div>
+                              )}
+                            </td>
+                            <td style={styles.td}>
+                              <div style={styles.modelTagsContainer}>
+                                {matchingKey?.models?.map(m => (
+                                  <span key={m} style={styles.miniTag}>{m}</span>
+                                ))}
+                              </div>
+                            </td>
+                            <td style={styles.td}>
+                              {matchingKey ? (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', width: '130px' }}>
+                                  <div>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', color: '#94a3b8', marginBottom: '2px' }}>
+                                      <span>RPM: {k.remainingRpm}/{matchingKey.limitRpm}</span>
+                                    </div>
+                                    <svg width="100%" height="4" style={{ borderRadius: '2px', background: 'rgba(255,255,255,0.05)', display: 'block' }}>
+                                      <rect 
+                                        width={`${Math.max(0, Math.min(100, (k.remainingRpm / Math.max(matchingKey.limitRpm, 1)) * 100))}%`} 
+                                        height="4" 
+                                        fill={k.remainingRpm < matchingKey.limitRpm * 0.2 ? '#ef4444' : '#a855f7'}
+                                        style={{ transition: 'width 0.4s ease' }}
+                                      />
+                                    </svg>
+                                  </div>
+                                  <div>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', color: '#94a3b8', marginBottom: '2px' }}>
+                                      <span>TPM: {k.remainingTpm}/{matchingKey.limitTpm}</span>
+                                    </div>
+                                    <svg width="100%" height="4" style={{ borderRadius: '2px', background: 'rgba(255,255,255,0.05)', display: 'block' }}>
+                                      <rect 
+                                        width={`${Math.max(0, Math.min(100, (k.remainingTpm / Math.max(matchingKey.limitTpm, 1)) * 100))}%`} 
+                                        height="4" 
+                                        fill={k.remainingTpm < matchingKey.limitTpm * 0.2 ? '#ef4444' : '#3b82f6'}
+                                        style={{ transition: 'width 0.4s ease' }}
+                                      />
+                                    </svg>
+                                  </div>
+                                </div>
+                              ) : (
+                                <span>-</span>
+                              )}
+                            </td>
+                            <td style={styles.td}>
+                              <span style={{...styles.concurrencyIndicator, color: k.currentConcurrency > 0 ? '#a855f7' : 'inherit'}}>
+                                {k.currentConcurrency} active
+                              </span>
+                            </td>
+                            {isAdmin && (
+                              <td style={styles.td}>
+                                <div style={styles.actionBtnsGroup}>
+                                  <button onClick={() => handleEditKey(matchingKey)} className="btn btn-secondary" style={styles.actionMiniBtn} title="Edit Key">
+                                    <Edit2 size={13} />
+                                  </button>
+                                  {k.inCooldown ? (
+                                    <button onClick={() => handleClearCooldown(k.id)} className="btn btn-success" style={styles.actionMiniBtn} title="Clear Cooldown">
+                                      <Power size={13} />
+                                    </button>
+                                  ) : (
+                                    <button onClick={() => handleTriggerCooldown(k.id)} className="btn btn-danger" style={styles.actionMiniBtn} title="Force Cooldown">
+                                      <Flame size={13} />
+                                    </button>
+                                  )}
+                                  <button onClick={() => handleDeleteKey(k.id)} className="btn btn-danger" style={styles.actionMiniBtn} title="Delete Key">
+                                    <Trash2 size={13} />
+                                  </button>
+                                </div>
+                              </td>
+                            )}
+                          </tr>
+                        );
+                      });
+                    })()}
                   </tbody>
                 </table>
               </div>
@@ -880,33 +1200,77 @@ export default function Dashboard({ token, username, roles, onLogout }) {
                 </form>
               )}
 
+              {/* Search & Filter Row */}
+              <div style={{...styles.filterRow, marginBottom: '20px'}}>
+                <div style={styles.filterGroup}>
+                  <input 
+                    type="text" className="input-field" style={styles.searchInput}
+                    placeholder="Search models by name..." 
+                    value={modelSearch} onChange={e => setModelSearch(e.target.value)}
+                  />
+                  <select 
+                    className="input-field" style={styles.filterSelect}
+                    value={modelProviderFilter} onChange={e => setModelProviderFilter(e.target.value)}
+                  >
+                    <option value="">All Providers</option>
+                    <option value="openai">OpenAI</option>
+                    <option value="anthropic">Anthropic</option>
+                    <option value="gemini">Google Gemini</option>
+                    <option value="cohere">Cohere</option>
+                  </select>
+                </div>
+              </div>
+
               {/* Models List Grid */}
               <div style={styles.modelsGrid}>
-                {modelsList.map(m => (
-                  <div key={m.id} className="glass-container" style={styles.modelItemCard}>
-                    <div style={styles.modelHeader}>
-                      <span style={styles.providerTag}>{m.provider.toUpperCase()}</span>
-                      {m.active ? (
-                        <span className="badge badge-active">Active</span>
-                      ) : (
-                        <span className="badge badge-inactive">Disabled</span>
+                {(() => {
+                  const filteredModels = modelsList.filter(m => {
+                    if (modelSearch && !m.displayName.toLowerCase().includes(modelSearch.toLowerCase()) && !m.name.toLowerCase().includes(modelSearch.toLowerCase())) {
+                      return false;
+                    }
+                    if (modelProviderFilter && m.provider !== modelProviderFilter) {
+                      return false;
+                    }
+                    return true;
+                  });
+
+                  if (filteredModels.length === 0) {
+                    return (
+                      <div className="glass-container" style={{ gridColumn: '1 / -1', padding: '40px', textAlign: 'center', color: '#64748b' }}>
+                        No AI models found matching search or provider filters.
+                      </div>
+                    );
+                  }
+
+                  return filteredModels.map(m => (
+                    <div key={m.id} className="glass-container" style={styles.modelItemCard}>
+                      <div style={styles.modelHeader}>
+                        <span style={styles.providerTag}>{m.provider.toUpperCase()}</span>
+                        {m.active ? (
+                          <span className="badge badge-active">Active</span>
+                        ) : (
+                          <span className="badge badge-inactive">Disabled</span>
+                        )}
+                      </div>
+                      <h3 style={styles.modelNameText}>{m.displayName}</h3>
+                      <code style={styles.modelCode}>{m.name}</code>
+                      
+                      {isAdmin && (
+                        <div style={styles.modelActionsFooter}>
+                          <button onClick={() => handleEditModel(m)} className="btn btn-secondary" style={styles.actionMiniBtn}>
+                            <Edit2 size={13} /> Edit
+                          </button>
+                          <button onClick={() => handleToggleModelActive(m)} className={`btn ${m.active ? 'btn-danger' : 'btn-success'}`} style={styles.actionMiniBtn}>
+                            <Power size={13} /> {m.active ? 'Disable' : 'Enable'}
+                          </button>
+                          <button onClick={() => handleDeleteModel(m.id)} className="btn btn-danger" style={styles.actionMiniBtn}>
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
                       )}
                     </div>
-                    <h3 style={styles.modelNameText}>{m.displayName}</h3>
-                    <code style={styles.modelCode}>{m.name}</code>
-                    
-                    {isAdmin && (
-                      <div style={styles.modelActionsFooter}>
-                        <button onClick={() => handleEditModel(m)} className="btn btn-secondary" style={styles.actionMiniBtn}>
-                          <Edit2 size={13} /> Edit
-                        </button>
-                        <button onClick={() => handleDeleteModel(m.id)} className="btn btn-danger" style={styles.actionMiniBtn}>
-                          <Trash2 size={13} />
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                ))}
+                  ));
+                })()}
               </div>
             </div>
           )}
@@ -1082,26 +1446,37 @@ export default function Dashboard({ token, username, roles, onLogout }) {
                       <div style={{ marginTop: '10px' }}>
                         <div style={{...styles.responseTextTitle, marginBottom: '12px'}}>AI Router Scheduler Reasoning:</div>
                         <div className="timeline">
-                          <div className="timeline-item active" style={{ fontSize: '0.82rem', color: '#e2e8f0' }}>
-                            <div className="timeline-badge">1</div>
-                            <strong>Interception</strong>: Request received matching provider <span style={{color: '#a855f7'}}>{sandboxForm.provider.toUpperCase()}</span> and model <span style={{color: '#a855f7'}}>{sandboxForm.model}</span>.
-                          </div>
-                          <div className="timeline-item active" style={{ fontSize: '0.82rem', color: '#e2e8f0' }}>
-                            <div className="timeline-badge">2</div>
-                            <strong>Evaluation</strong>: Scanned active key pool. Located <strong>{keysList.filter(k => k.provider === sandboxForm.provider).length}</strong> keys supporting this model.
-                          </div>
-                          <div className="timeline-item active" style={{ fontSize: '0.82rem', color: '#e2e8f0' }}>
-                            <div className="timeline-badge">3</div>
-                            <strong>Filtering</strong>: Screened out keys in cooldown. Active capacity and concurrency checks verified.
-                          </div>
-                          <div className="timeline-item success" style={{ fontSize: '0.82rem', color: '#e2e8f0' }}>
-                            <div className="timeline-badge">✓</div>
-                            <strong>Decision</strong>: Selected key <strong>"{sandboxResponse.selectedKeyName}"</strong> with highest token headroom.
-                          </div>
-                          <div className="timeline-item success" style={{ fontSize: '0.82rem', color: '#e2e8f0' }}>
-                            <div className="timeline-badge">✓</div>
-                            <strong>Execution</strong>: Request completed in <strong>{sandboxResponse.latencyMs}ms</strong> using <strong>{sandboxResponse.attempts}</strong> attempt(s).
-                          </div>
+                          {sandboxResponse.routingTimeline && sandboxResponse.routingTimeline.length > 0 ? (
+                            sandboxResponse.routingTimeline.map((step, idx) => {
+                              let statusClass = "active";
+                              if (step.includes("successfully completed") || step.includes("Selection")) statusClass = "success";
+                              else if (step.includes("Exhausted") || step.includes("failed") || step.includes("Error")) statusClass = "error";
+                              
+                              return (
+                                <div key={idx} className={`timeline-item ${statusClass}`} style={{ fontSize: '0.82rem', color: '#e2e8f0' }}>
+                                  <div className="timeline-badge">
+                                    {step.includes("successfully completed") ? "✓" : step.includes("failed") ? "✗" : idx + 1}
+                                  </div>
+                                  <div>{step}</div>
+                                </div>
+                              );
+                            })
+                          ) : (
+                            <>
+                              <div className="timeline-item active" style={{ fontSize: '0.82rem', color: '#e2e8f0' }}>
+                                <div className="timeline-badge">1</div>
+                                <strong>Interception</strong>: Request received matching provider <span style={{color: '#a855f7'}}>{sandboxForm.provider.toUpperCase()}</span> and model <span style={{color: '#a855f7'}}>{sandboxForm.model}</span>.
+                              </div>
+                              <div className="timeline-item success" style={{ fontSize: '0.82rem', color: '#e2e8f0' }}>
+                                <div className="timeline-badge">✓</div>
+                                <strong>Decision</strong>: Selected key <strong>"{sandboxResponse.selectedKeyName}"</strong>.
+                              </div>
+                              <div className="timeline-item success" style={{ fontSize: '0.82rem', color: '#e2e8f0' }}>
+                                <div className="timeline-badge">✓</div>
+                                <strong>Execution</strong>: Request completed in <strong>{sandboxResponse.latencyMs}ms</strong> using <strong>{sandboxResponse.attempts}</strong> attempt(s).
+                              </div>
+                            </>
+                          )}
                         </div>
                       </div>
                       
@@ -1118,6 +1493,249 @@ export default function Dashboard({ token, username, roles, onLogout }) {
                   )}
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* TAB: KEY-MODEL MAPPINGS */}
+          {activeTab === 'mappings' && (
+            <div>
+              <div style={styles.tabHeader}>
+                <div>
+                  <h2 style={styles.tabTitle}>Key-Model Mappings</h2>
+                  <p style={styles.tabSubtitle}>Manage explicit mappings between API keys and AI models.</p>
+                </div>
+                {isAdmin && !showMappingForm && (
+                  <button onClick={() => setShowMappingForm(true)} className="btn btn-primary">
+                    <Plus size={16} /> New Mapping
+                  </button>
+                )}
+              </div>
+
+              {/* Form Inline */}
+              {showMappingForm && isAdmin && (
+                <form onSubmit={handleMappingSubmit} style={styles.inlineForm} className="animate-fade-in">
+                  <h3 style={styles.formTitle}>Create Key-Model Mapping</h3>
+                  <div style={styles.formGrid}>
+                    <div>
+                      <label style={styles.formLabel}>Select API Key</label>
+                      <select 
+                        required className="input-field" 
+                        value={mappingForm.keyId} 
+                        onChange={e => setMappingForm({...mappingForm, keyId: e.target.value})}
+                        style={styles.selectStyle}
+                      >
+                        <option value="">-- Choose Key --</option>
+                        {keysList.map(k => (
+                          <option key={k.id} value={k.id}>{k.name} ({k.provider.toUpperCase()})</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label style={styles.formLabel}>Select AI Model</label>
+                      <select 
+                        required className="input-field" 
+                        value={mappingForm.modelId} 
+                        onChange={e => setMappingForm({...mappingForm, modelId: e.target.value})}
+                        style={styles.selectStyle}
+                      >
+                        <option value="">-- Choose Model --</option>
+                        {modelsList.map(m => (
+                          <option key={m.id} value={m.id}>{m.displayName} ({m.name})</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                  <div style={styles.formActions}>
+                    <button type="submit" className="btn btn-success">Create Mapping</button>
+                    <button 
+                      type="button" className="btn btn-secondary" 
+                      onClick={() => { setShowMappingForm(false); setMappingForm({ keyId: '', modelId: '' }); }}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </form>
+              )}
+
+              {/* Mappings Table */}
+              <div style={styles.tableWrapper}>
+                <table style={styles.table}>
+                  <thead>
+                    <tr>
+                      <th style={styles.th}>API Key Name</th>
+                      <th style={styles.th}>Model Display Name</th>
+                      <th style={styles.th}>Model ID / Name</th>
+                      <th style={styles.th}>Provider</th>
+                      {isAdmin && <th style={styles.th}>Actions</th>}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {mappingsList.length > 0 ? (
+                      mappingsList.map(m => {
+                        const matchingKey = keysList.find(key => key.id === m.keyId);
+                        const matchingModel = modelsList.find(model => model.id === m.modelId);
+                        return (
+                          <tr key={m.id} style={styles.tr}>
+                            <td style={styles.td}>
+                              <div style={styles.boldText}>{matchingKey ? matchingKey.name : m.keyId}</div>
+                            </td>
+                            <td style={styles.td}>
+                              <div style={styles.boldText}>{matchingModel ? matchingModel.displayName : m.modelId}</div>
+                            </td>
+                            <td style={styles.td}>
+                              <code>{matchingModel ? matchingModel.name : '-'}</code>
+                            </td>
+                            <td style={styles.td}>
+                              <span style={styles.providerTag}>
+                                {matchingKey ? matchingKey.provider.toUpperCase() : '-'}
+                              </span>
+                            </td>
+                            {isAdmin && (
+                              <td style={styles.td}>
+                                <button onClick={() => handleDeleteMapping(m.id)} className="btn btn-danger" style={styles.actionMiniBtn} title="Remove Mapping">
+                                  <Trash2 size={13} /> Delete
+                                </button>
+                              </td>
+                            )}
+                          </tr>
+                        );
+                      })
+                    ) : (
+                      <tr style={styles.tr}>
+                        <td colSpan="5" style={{...styles.td, textAlign: 'center', color: '#64748b', padding: '30px'}}>
+                          No mappings found. Create a mapping to link a key with a model.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* TAB: USAGE ANALYTICS */}
+          {activeTab === 'analytics' && (
+            <div>
+              <div style={styles.tabHeader}>
+                <div>
+                  <h2 style={styles.tabTitle}>Usage & Error Analytics</h2>
+                  <p style={styles.tabSubtitle}>Performance metrics, request counts, and error breakdowns.</p>
+                </div>
+              </div>
+
+              {getAnalytics() ? (() => {
+                const data = getAnalytics();
+                const successRate = parseFloat(data.successRate);
+                
+                const radius = 45;
+                const strokeWidth = 8;
+                const circumference = 2 * Math.PI * radius;
+                const strokeDashoffset = circumference - (successRate / 100) * circumference;
+
+                return (
+                  <div style={styles.chartGrid}>
+                    {/* Success vs Failure */}
+                    <div className="glass-container" style={styles.chartCard}>
+                      <h3 style={styles.chartTitle}>Success vs. Failure Rate</h3>
+                      <div style={styles.donutContainer}>
+                        <svg width="120" height="120" style={styles.donutSvg} viewBox="0 0 120 120">
+                          <circle cx="60" cy="60" r={radius} fill="transparent" stroke="rgba(239, 68, 68, 0.15)" strokeWidth={strokeWidth} />
+                          <circle 
+                            cx="60" cy="60" r={radius} fill="transparent" 
+                            stroke="#10b981" strokeWidth={strokeWidth} 
+                            strokeDasharray={circumference}
+                            strokeDashoffset={strokeDashoffset}
+                            strokeLinecap="round"
+                            style={{ transition: 'stroke-dashoffset 0.8s ease' }}
+                          />
+                        </svg>
+                        <div style={styles.donutText}>
+                          <span style={{ fontSize: '1.4rem', fontWeight: '700', color: '#10b981' }}>{data.successRate}%</span>
+                          <span style={{ fontSize: '0.62rem', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Success Rate</span>
+                        </div>
+                      </div>
+                      <div style={styles.legendList}>
+                        <div style={styles.legendItem}>
+                          <span style={{...styles.legendDot, background: '#10b981'}} />
+                          <span>Success ({data.successCount})</span>
+                        </div>
+                        <div style={styles.legendItem}>
+                          <span style={{...styles.legendDot, background: '#ef4444'}} />
+                          <span>Failure ({data.failureCount})</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Error Distribution */}
+                    <div className="glass-container" style={styles.chartCard}>
+                      <h3 style={styles.chartTitle}>Error Breakdown</h3>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', flex: 1, justifyContent: 'center' }}>
+                        {Object.entries(data.errorDistribution).map(([errorType, count]) => {
+                          const percentage = data.failureCount > 0 ? ((count / data.failureCount) * 100).toFixed(0) : 0;
+                          return (
+                            <div key={errorType} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.82rem' }}>
+                              <span style={{ color: '#94a3b8' }}>{errorType}</span>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <span style={{ fontWeight: '600', color: count > 0 ? '#ef4444' : '#64748b' }}>{count}</span>
+                                <span style={{ fontSize: '0.7rem', color: '#64748b', background: 'rgba(0,0,0,0.2)', padding: '2px 6px', borderRadius: '4px' }}>{percentage}%</span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Requests per Key */}
+                    <div className="glass-container" style={styles.chartCard}>
+                      <h3 style={styles.chartTitle}>Requests per Key</h3>
+                      <div style={styles.barList}>
+                        {Object.entries(data.requestsPerKey).map(([keyName, count]) => {
+                          const maxCount = Math.max(...Object.values(data.requestsPerKey));
+                          const widthPct = maxCount > 0 ? (count / maxCount) * 100 : 0;
+                          return (
+                            <div key={keyName} style={styles.barRow}>
+                              <div style={styles.barLabel}>
+                                <span style={{ textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap', maxWidth: '180px' }}>{keyName}</span>
+                                <strong>{count} reqs</strong>
+                              </div>
+                              <div style={styles.barOuter}>
+                                <div style={{...styles.barInner, width: `${widthPct}%`, background: 'linear-gradient(90deg, #a855f7 0%, #ec4899 100%)'}} />
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Requests per Model */}
+                    <div className="glass-container" style={styles.chartCard}>
+                      <h3 style={styles.chartTitle}>Requests per Model</h3>
+                      <div style={styles.barList}>
+                        {Object.entries(data.requestsPerModel).map(([modelName, count]) => {
+                          const maxCount = Math.max(...Object.values(data.requestsPerModel));
+                          const widthPct = maxCount > 0 ? (count / maxCount) * 100 : 0;
+                          return (
+                            <div key={modelName} style={styles.barRow}>
+                              <div style={styles.barLabel}>
+                                <span style={{ textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap', maxWidth: '180px' }}>{modelName}</span>
+                                <strong>{count} reqs</strong>
+                              </div>
+                              <div style={styles.barOuter}>
+                                <div style={{...styles.barInner, width: `${widthPct}%`, background: 'linear-gradient(90deg, #3b82f6 0%, #00f2fe 100%)'}} />
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })() : (
+                <div style={{ padding: '40px 20px', textAlign: 'center', color: '#64748b' }}>
+                  <Database size={40} style={{ marginBottom: '10px' }} />
+                  <p>No usage data available to generate analytics. Run some prompts in the Router Test sandbox first.</p>
+                </div>
+              )}
             </div>
           )}
 
@@ -1340,6 +1958,28 @@ console.log(data);`}
                   {selectedLog.status === 'SUCCESS' ? selectedLog.responseText : `Error: ${selectedLog.errorMessage}`}
                 </pre>
               </div>
+
+              {getRelatedAttempts(selectedLog).length > 0 && (
+                <div style={{ marginTop: '10px' }}>
+                  <span style={styles.responseTextTitle}>Failover Retry & Key Switching Sequence:</span>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '8px' }}>
+                    {getRelatedAttempts(selectedLog).map((attempt, idx) => (
+                      <div key={attempt.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(0,0,0,0.15)', padding: '8px 12px', borderRadius: '6px', border: '1px solid var(--glass-border)', fontSize: '0.8rem' }}>
+                        <span>Attempt {idx + 1}: <strong>{attempt.keyName}</strong></span>
+                        <span className={`badge ${attempt.status === 'SUCCESS' ? 'badge-active' : 'badge-inactive'}`} style={{ padding: '2px 8px', fontSize: '0.68rem' }}>
+                          {attempt.status}
+                        </span>
+                      </div>
+                    ))}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(0,0,0,0.15)', padding: '8px 12px', borderRadius: '6px', border: '1px solid var(--glass-border)', fontSize: '0.8rem' }}>
+                      <span>Final Selection: <strong>{selectedLog.keyName}</strong></span>
+                      <span className={`badge ${selectedLog.status === 'SUCCESS' ? 'badge-active' : 'badge-inactive'}`} style={{ padding: '2px 8px', fontSize: '0.68rem' }}>
+                        {selectedLog.status}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -1494,6 +2134,7 @@ const styles = {
   mainPanel: {
     padding: '24px',
     minHeight: '400px',
+    minWidth: 0,
   },
   tabHeader: {
     display: 'flex',
@@ -1830,5 +2471,125 @@ const styles = {
     textAlign: 'center',
     fontSize: '0.88rem',
     padding: '0 20px',
+  },
+  chartGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+    gap: '20px',
+    marginTop: '10px'
+  },
+  chartCard: {
+    padding: '20px',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '16px'
+  },
+  chartTitle: {
+    fontSize: '0.95rem',
+    fontWeight: '600',
+    color: '#fff',
+    borderBottom: '1px solid var(--glass-border)',
+    paddingBottom: '10px',
+    margin: 0
+  },
+  donutContainer: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+    height: '140px',
+    margin: '10px 0'
+  },
+  donutSvg: {
+    transform: 'rotate(-90deg)'
+  },
+  donutText: {
+    position: 'absolute',
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  barList: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '12px'
+  },
+  barRow: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '6px'
+  },
+  barLabel: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    fontSize: '0.78rem',
+    color: '#94a3b8'
+  },
+  barOuter: {
+    width: '100%',
+    height: '8px',
+    background: 'rgba(255,255,255,0.04)',
+    borderRadius: '4px',
+    overflow: 'hidden',
+    border: '1px solid rgba(255,255,255,0.06)'
+  },
+  barInner: {
+    height: '100%',
+    borderRadius: '4px',
+    transition: 'width 0.6s cubic-bezier(0.4, 0, 0.2, 1)'
+  },
+  legendList: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: '12px',
+    justifyContent: 'center',
+    fontSize: '0.78rem'
+  },
+  legendItem: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '6px',
+    color: '#94a3b8'
+  },
+  legendDot: {
+    width: '8px',
+    height: '8px',
+    borderRadius: '50%'
+  },
+  filterRow: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: '20px',
+    flexWrap: 'wrap',
+    marginBottom: '15px'
+  },
+  filterGroup: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '10px'
+  },
+  searchInput: {
+    width: '240px',
+    padding: '8px 12px',
+    fontSize: '0.85rem'
+  },
+  filterSelect: {
+    padding: '8px 12px',
+    fontSize: '0.85rem',
+    minWidth: '130px',
+    background: 'rgba(0,0,0,0.2)',
+    color: '#fff',
+    border: '1px solid var(--glass-border)',
+    borderRadius: '6px'
+  },
+  sortLabel: {
+    fontSize: '0.85rem',
+    color: '#94a3b8'
+  },
+  sortOrderBtn: {
+    padding: '8px 12px',
+    fontSize: '0.85rem'
   }
 };
