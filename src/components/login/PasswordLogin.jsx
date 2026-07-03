@@ -2,7 +2,6 @@ import React from 'react';
 import { Lock, RefreshCw, LogIn, ArrowLeft } from 'lucide-react';
 
 export default function PasswordLogin({
-  username,
   password,
   setPassword,
   loading,

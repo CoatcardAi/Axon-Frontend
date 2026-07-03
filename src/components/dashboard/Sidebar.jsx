@@ -1,92 +1,65 @@
 import React from 'react';
-import { Key, Database, Link2, Clock, FileText, MessageSquare } from 'lucide-react';
+import { NavLink } from 'react-router-dom';
+import { Key, Database, Link2, Clock, FileText, MessageSquare, User } from 'lucide-react';
 
-export default function Sidebar({ activeTab, setActiveTab, isAdmin, styles }) {
+export default function Sidebar({ isAdmin, styles }) {
+  const getLinkStyle = ({ isActive }) => (isActive ? styles.sidebarBtnActive : styles.sidebarBtn);
+
   return (
     <aside className="glass-container" style={styles.sidebar}>
       {isAdmin ? (
         <>
-          <button
-            onClick={() => setActiveTab('keys')}
-            style={activeTab === 'keys' ? styles.sidebarBtnActive : styles.sidebarBtn}
-          >
+          <NavLink to="/keys" style={getLinkStyle}>
             <Key size={18} />
             <span>API Keys</span>
-          </button>
+          </NavLink>
 
-          <button
-            onClick={() => setActiveTab('models')}
-            style={activeTab === 'models' ? styles.sidebarBtnActive : styles.sidebarBtn}
-          >
+          <NavLink to="/models" style={getLinkStyle}>
             <Database size={18} />
             <span>AI Models</span>
-          </button>
+          </NavLink>
 
-          <button
-            onClick={() => setActiveTab('mappings')}
-            style={activeTab === 'mappings' ? styles.sidebarBtnActive : styles.sidebarBtn}
-          >
+          <NavLink to="/mappings" style={getLinkStyle}>
             <Link2 size={18} />
             <span>Mappings</span>
-          </button>
+          </NavLink>
 
-          <button
-            onClick={() => setActiveTab('analytics')}
-            style={activeTab === 'analytics' ? styles.sidebarBtnActive : styles.sidebarBtn}
-          >
+          <NavLink to="/analytics" style={getLinkStyle}>
             <Clock size={18} />
             <span>Analytics</span>
-          </button>
+          </NavLink>
 
-          <button
-            onClick={() => setActiveTab('logs')}
-            style={activeTab === 'logs' ? styles.sidebarBtnActive : styles.sidebarBtn}
-          >
+          <NavLink to="/logs" style={getLinkStyle}>
             <FileText size={18} />
             <span>Logs</span>
-          </button>
+          </NavLink>
 
-          <button
-            onClick={() => setActiveTab('sandbox')}
-            style={activeTab === 'sandbox' ? styles.sidebarBtnActive : styles.sidebarBtn}
-          >
+          <NavLink to="/sandbox" style={getLinkStyle}>
             <MessageSquare size={18} />
             <span>Gemini Chatbot</span>
-          </button>
+          </NavLink>
 
-          <button
-            onClick={() => setActiveTab('profile')}
-            style={activeTab === 'profile' ? styles.sidebarBtnActive : styles.sidebarBtn}
-          >
-            <Key size={18} />
+          <NavLink to="/profile" style={getLinkStyle}>
+            <User size={18} />
             <span>Profile & Security</span>
-          </button>
+          </NavLink>
         </>
       ) : (
         <>
-          <button
-            onClick={() => setActiveTab('sandbox')}
-            style={activeTab === 'sandbox' ? styles.sidebarBtnActive : styles.sidebarBtn}
-          >
+          <NavLink to="/sandbox" style={getLinkStyle}>
             <MessageSquare size={18} />
             <span>Gemini Chatbot</span>
-          </button>
+          </NavLink>
 
-          <button
-            onClick={() => setActiveTab('guide')}
-            style={activeTab === 'guide' ? styles.sidebarBtnActive : styles.sidebarBtn}
-          >
+          <NavLink to="/guide" style={getLinkStyle}>
             <FileText size={18} />
             <span>Developer Guide</span>
-          </button>
+          </NavLink>
 
-          <button
-            onClick={() => setActiveTab('profile')}
-            style={activeTab === 'profile' ? styles.sidebarBtnActive : styles.sidebarBtn}
-          >
-            <Key size={18} />
+          <NavLink to="/profile" style={getLinkStyle}>
+            <User size={18} />
             <span>Profile & Security</span>
-          </button>
+          </NavLink>
         </>
       )}
     </aside>

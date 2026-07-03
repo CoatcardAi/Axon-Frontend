@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ShieldCheck, Cpu, Zap, Activity, Check } from 'lucide-react';
+import { ShieldCheck, Cpu, Zap, Activity } from 'lucide-react';
 import LoginCard from './login/LoginCard';
 import SignupForm from './login/SignupForm';
 import OtpVerification from './login/OtpVerification';
@@ -11,6 +11,8 @@ export default function Login({ onLoginSuccess }) {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [otp, setOtp] = useState('');
+  const [name, setName] = useState('');
+  const [dob, setDob] = useState('');
   const [age, setAge] = useState('');
   const [gender, setGender] = useState('');
 
@@ -80,7 +82,7 @@ export default function Login({ onLoginSuccess }) {
         throw new Error(data.message || 'Invalid email or password.');
       }
 
-      onLoginSuccess(data.token, data.username, data.roles);
+      onLoginSuccess(data.token, data.username, data.roles, data.name, data.dob, data.age, data.gender);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -112,6 +114,8 @@ export default function Login({ onLoginSuccess }) {
         body: JSON.stringify({ 
           username, 
           password, 
+          name,
+          dob,
           age: age ? parseInt(age) : null, 
           gender: gender || null 
         })
@@ -149,7 +153,7 @@ export default function Login({ onLoginSuccess }) {
         throw new Error(data.message || 'Invalid OTP code.');
       }
 
-      onLoginSuccess(data.token, data.username, data.roles);
+      onLoginSuccess(data.token, data.username, data.roles, data.name, data.dob, data.age, data.gender);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -216,6 +220,8 @@ export default function Login({ onLoginSuccess }) {
     setPassword('');
     setConfirmPassword('');
     setOtp('');
+    setName('');
+    setDob('');
     setAge('');
     setGender('');
     setMessage('');
@@ -332,6 +338,10 @@ export default function Login({ onLoginSuccess }) {
                 setPassword={setPassword}
                 confirmPassword={confirmPassword}
                 setConfirmPassword={setConfirmPassword}
+                name={name}
+                setName={setName}
+                dob={dob}
+                setDob={setDob}
                 age={age}
                 setAge={setAge}
                 gender={gender}

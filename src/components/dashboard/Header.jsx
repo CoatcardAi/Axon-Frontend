@@ -1,5 +1,5 @@
 import React from 'react';
-import { RefreshCw, LogOut, Shield, ShieldAlert, Activity, Cpu, Menu } from 'lucide-react';
+import { RefreshCw, LogOut, ShieldAlert, Activity, Menu } from 'lucide-react';
 
 export default function Header({
   username,

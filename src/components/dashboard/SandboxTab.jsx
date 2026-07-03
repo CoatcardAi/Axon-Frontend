@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
-  Send, User, Sparkles, Activity, ShieldCheck, 
-  RefreshCw, Check, Copy, Terminal, ChevronRight 
+  Send, User, Sparkles, Activity, 
+  RefreshCw, Check, Copy 
 } from 'lucide-react';
 
 export default function SandboxTab({

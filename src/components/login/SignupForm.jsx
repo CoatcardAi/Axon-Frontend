@@ -1,5 +1,5 @@
 import React from 'react';
-import { User, Lock, RefreshCw, ArrowRight } from 'lucide-react';
+import { User, Lock, RefreshCw, ArrowRight, Calendar } from 'lucide-react';
 
 export default function SignupForm({
   username,
@@ -8,6 +8,10 @@ export default function SignupForm({
   setPassword,
   confirmPassword,
   setConfirmPassword,
+  name,
+  setName,
+  dob,
+  setDob,
   age,
   setAge,
   gender,
@@ -36,6 +40,39 @@ export default function SignupForm({
             required
             disabled={loading}
             style={styles.inputPadding}
+          />
+        </div>
+      </div>
+
+      <div style={styles.inputGroup}>
+        <label style={styles.label}>Full Name</label>
+        <div style={styles.inputWrapper}>
+          <User size={18} style={styles.inputIcon} />
+          <input
+            type="text"
+            className="input-field"
+            placeholder="Enter your full name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            required
+            disabled={loading}
+            style={styles.inputPadding}
+          />
+        </div>
+      </div>
+
+      <div style={styles.inputGroup}>
+        <label style={styles.label}>Date of Birth</label>
+        <div style={styles.inputWrapper}>
+          <Calendar size={18} style={styles.inputIcon} />
+          <input
+            type="date"
+            className="input-field"
+            value={dob}
+            onChange={(e) => setDob(e.target.value)}
+            required
+            disabled={loading}
+            style={{ ...styles.inputPadding, colorScheme: 'dark' }}
           />
         </div>
       </div>

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { Lock, RefreshCw, Key, ShieldCheck, Mail } from 'lucide-react';
+import { Lock, RefreshCw, Key, ShieldCheck, Mail, User, Calendar } from 'lucide-react';
 
-export default function ProfileTab({ username, roles, styles }) {
+export default function ProfileTab({ username, roles, profile, styles }) {
   const [oldPassword, setOldPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -10,6 +10,45 @@ export default function ProfileTab({ username, roles, styles }) {
   const [success, setSuccess] = useState('');
 
   const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8080';
+
+  const localStyles = {
+    inputGroup: {
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '6px',
+    },
+    label: {
+      fontSize: '0.75rem',
+      fontWeight: '600',
+      textTransform: 'uppercase',
+      letterSpacing: '0.02em',
+      color: '#94a3b8',
+    },
+    inputWrapper: {
+      position: 'relative',
+      display: 'flex',
+      alignItems: 'center',
+      width: '100%',
+    },
+    inputIcon: {
+      position: 'absolute',
+      left: '14px',
+      color: '#475569',
+      pointerEvents: 'none',
+      display: 'flex',
+      alignItems: 'center',
+    },
+    inputPadding: {
+      paddingLeft: '42px',
+      width: '100%',
+    },
+    submitBtn: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: '8px',
+      padding: '10px 20px',
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -45,10 +84,10 @@ export default function ProfileTab({ username, roles, styles }) {
 
       const data = await response.json();
       if (!response.ok) {
-        throw new Error(data.message || 'Failed to change password.');
+        throw new Error(data.message || 'Failed to update password.');
       }
 
-      setSuccess('Password changed successfully.');
+      setSuccess('Password updated successfully.');
       setOldPassword('');
       setNewPassword('');
       setConfirmPassword('');
@@ -85,28 +124,68 @@ export default function ProfileTab({ username, roles, styles }) {
             <div style={{ fontSize: '0.92rem', color: '#fff', fontWeight: '500' }}>{roles.map(r => r.replace('ROLE_', '')).join(', ')}</div>
           </div>
         </div>
+
+        {profile?.name && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', background: 'rgba(0,0,0,0.15)', padding: '12px 16px', borderRadius: '8px' }}>
+            <User size={18} color="#60a5fa" />
+            <div>
+              <span style={{ fontSize: '0.72rem', color: '#64748b', textTransform: 'uppercase', fontWeight: 'bold' }}>Full Name</span>
+              <div style={{ fontSize: '0.92rem', color: '#fff', fontWeight: '500' }}>{profile.name}</div>
+            </div>
+          </div>
+        )}
+
+        {profile?.dob && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', background: 'rgba(0,0,0,0.15)', padding: '12px 16px', borderRadius: '8px' }}>
+            <Calendar size={18} color="#34d399" />
+            <div>
+              <span style={{ fontSize: '0.72rem', color: '#64748b', textTransform: 'uppercase', fontWeight: 'bold' }}>Date of Birth</span>
+              <div style={{ fontSize: '0.92rem', color: '#fff', fontWeight: '500' }}>{profile.dob}</div>
+            </div>
+          </div>
+        )}
+
+        {profile?.age && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', background: 'rgba(0,0,0,0.15)', padding: '12px 16px', borderRadius: '8px' }}>
+            <Calendar size={18} color="#f59e0b" />
+            <div>
+              <span style={{ fontSize: '0.72rem', color: '#64748b', textTransform: 'uppercase', fontWeight: 'bold' }}>Age</span>
+              <div style={{ fontSize: '0.92rem', color: '#fff', fontWeight: '500' }}>{profile.age} years old</div>
+            </div>
+          </div>
+        )}
+
+        {profile?.gender && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', background: 'rgba(0,0,0,0.15)', padding: '12px 16px', borderRadius: '8px' }}>
+            <User size={18} color="#f472b6" />
+            <div>
+              <span style={{ fontSize: '0.72rem', color: '#64748b', textTransform: 'uppercase', fontWeight: 'bold' }}>Gender</span>
+              <div style={{ fontSize: '0.92rem', color: '#fff', fontWeight: '500' }}>{profile.gender}</div>
+            </div>
+          </div>
+        )}
       </div>
 
       <form onSubmit={handleSubmit} className="glass-container" style={{ padding: '24px' }}>
         <h3 style={{ ...styles.formTitle, marginBottom: '16px' }}>Update Password</h3>
 
         {error && (
-          <div style={{ ...styles.errorAlert, marginBottom: '16px', background: 'rgba(239, 68, 68, 0.08)', border: '1px solid rgba(239, 68, 68, 0.2)', color: '#f87171', padding: '12px', borderRadius: '8px', fontSize: '0.85rem' }}>
+          <div style={{ marginBottom: '16px', background: 'rgba(239, 68, 68, 0.08)', border: '1px solid rgba(239, 68, 68, 0.2)', color: '#f87171', padding: '12px', borderRadius: '8px', fontSize: '0.85rem' }}>
             <span>{error}</span>
           </div>
         )}
 
         {success && (
-          <div style={{ ...styles.infoAlert, marginBottom: '16px', background: 'rgba(16, 185, 129, 0.08)', border: '1px solid rgba(16, 185, 129, 0.2)', color: '#34d399', padding: '12px', borderRadius: '8px', fontSize: '0.85rem' }}>
+          <div style={{ marginBottom: '16px', background: 'rgba(16, 185, 129, 0.08)', border: '1px solid rgba(16, 185, 129, 0.2)', color: '#34d399', padding: '12px', borderRadius: '8px', fontSize: '0.85rem' }}>
             <span>{success}</span>
           </div>
         )}
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          <div style={styles.inputGroup}>
-            <label style={styles.label}>Current Password</label>
-            <div style={styles.inputWrapper}>
-              <Lock size={18} style={styles.inputIcon} />
+          <div style={localStyles.inputGroup}>
+            <label style={localStyles.label}>Current Password</label>
+            <div style={localStyles.inputWrapper}>
+              <Lock size={18} style={localStyles.inputIcon} />
               <input
                 type="password"
                 className="input-field"
@@ -115,15 +194,15 @@ export default function ProfileTab({ username, roles, styles }) {
                 onChange={(e) => setOldPassword(e.target.value)}
                 required
                 disabled={loading}
-                style={styles.inputPadding}
+                style={localStyles.inputPadding}
               />
             </div>
           </div>
 
-          <div style={styles.inputGroup}>
-            <label style={styles.label}>New Password</label>
-            <div style={styles.inputWrapper}>
-              <Lock size={18} style={styles.inputIcon} />
+          <div style={localStyles.inputGroup}>
+            <label style={localStyles.label}>New Password</label>
+            <div style={localStyles.inputWrapper}>
+              <Lock size={18} style={localStyles.inputIcon} />
               <input
                 type="password"
                 className="input-field"
@@ -132,15 +211,15 @@ export default function ProfileTab({ username, roles, styles }) {
                 onChange={(e) => setNewPassword(e.target.value)}
                 required
                 disabled={loading}
-                style={styles.inputPadding}
+                style={localStyles.inputPadding}
               />
             </div>
           </div>
 
-          <div style={styles.inputGroup}>
-            <label style={styles.label}>Confirm New Password</label>
-            <div style={styles.inputWrapper}>
-              <Lock size={18} style={styles.inputIcon} />
+          <div style={localStyles.inputGroup}>
+            <label style={localStyles.label}>Confirm New Password</label>
+            <div style={localStyles.inputWrapper}>
+              <Lock size={18} style={localStyles.inputIcon} />
               <input
                 type="password"
                 className="input-field"
@@ -149,15 +228,15 @@ export default function ProfileTab({ username, roles, styles }) {
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 required
                 disabled={loading}
-                style={styles.inputPadding}
+                style={localStyles.inputPadding}
               />
             </div>
           </div>
 
-          <button type="submit" className="btn btn-primary" style={{ ...styles.submitBtn, alignSelf: 'flex-start', marginTop: '8px' }} disabled={loading}>
+          <button type="submit" className="btn btn-primary" style={{ ...localStyles.submitBtn, alignSelf: 'flex-start', marginTop: '8px' }} disabled={loading}>
             {loading ? (
               <>
-                <RefreshCw size={16} className="spin" style={styles.spinIcon} />
+                <RefreshCw size={16} className="spin" style={{ marginRight: '8px' }} />
                 Updating...
               </>
             ) : (

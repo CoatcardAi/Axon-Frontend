@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { KeyRound, Lock, RefreshCw, ShieldCheck, ArrowRight } from 'lucide-react';
+import { KeyRound, Lock, RefreshCw, ShieldCheck } from 'lucide-react';
 
 export default function ForgotPassword({
   username,

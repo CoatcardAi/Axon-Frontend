@@ -355,3 +355,185 @@ body {
 .copy-pulse {
   animation: copySuccess 0.4s ease-out;
 }
+
+/* AI Model Card Styles */
+.model-card-premium {
+  display: flex;
+  flex-direction: column;
+  padding: 24px;
+  gap: 16px;
+  position: relative;
+  overflow: hidden;
+  transition: all var(--transition-normal);
+  background: rgba(14, 14, 24, 0.45);
+}
+
+.model-card-premium::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: transparent;
+  transition: background var(--transition-normal);
+}
+
+/* Specific provider top borders / glows */
+.model-card-gemini:hover::before {
+  background: linear-gradient(90deg, #a855f7, #6366f1);
+}
+.model-card-openai:hover::before {
+  background: linear-gradient(90deg, #10b981, #059669);
+}
+.model-card-anthropic:hover::before {
+  background: linear-gradient(90deg, #f97316, #ea580c);
+}
+.model-card-cohere:hover::before {
+  background: linear-gradient(90deg, #06b6d4, #0891b2);
+}
+.model-card-default:hover::before {
+  background: linear-gradient(90deg, #64748b, #475569);
+}
+
+.model-card-premium:hover {
+  transform: translateY(-5px);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+.model-card-gemini:hover {
+  box-shadow: 0 12px 30px rgba(168, 85, 247, 0.12);
+}
+.model-card-openai:hover {
+  box-shadow: 0 12px 30px rgba(16, 185, 129, 0.1);
+}
+.model-card-anthropic:hover {
+  box-shadow: 0 12px 30px rgba(249, 115, 22, 0.1);
+}
+.model-card-cohere:hover {
+  box-shadow: 0 12px 30px rgba(6, 182, 212, 0.1);
+}
+
+.model-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.provider-pill {
+  font-family: var(--font-sans);
+  font-size: 0.65rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 4px 10px;
+  border-radius: 6px;
+  color: #ffffff;
+}
+
+.provider-gemini {
+  background: linear-gradient(135deg, #a855f7 0%, #6366f1 100%);
+  box-shadow: 0 0 10px rgba(168, 85, 247, 0.2);
+}
+.provider-openai {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  box-shadow: 0 0 10px rgba(16, 185, 129, 0.2);
+}
+.provider-anthropic {
+  background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
+  box-shadow: 0 0 10px rgba(249, 115, 22, 0.2);
+}
+.provider-cohere {
+  background: linear-gradient(135deg, #06b6d4 0%, #0891b2 100%);
+  box-shadow: 0 0 10px rgba(6, 182, 212, 0.2);
+}
+.provider-default {
+  background: linear-gradient(135deg, #64748b 0%, #475569 100%);
+}
+
+.model-title-text {
+  font-family: var(--font-header);
+  font-size: 1.15rem;
+  font-weight: 600;
+  color: #ffffff;
+  margin-top: 4px;
+}
+
+.model-id-code {
+  font-family: monospace;
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+  background: rgba(0, 0, 0, 0.25);
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.03);
+}
+
+.model-meta-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  padding-top: 12px;
+  margin-top: auto;
+}
+
+.model-meta-label {
+  color: #64748b;
+}
+
+.model-meta-value {
+  color: #e2e8f0;
+  font-weight: 600;
+}
+
+.model-actions-footer-premium {
+  display: flex;
+  gap: 8px;
+  margin-top: 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  padding-top: 16px;
+}
+
+/* Glassmorphic outline buttons for actions */
+.btn-action {
+  padding: 8px 12px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.02);
+  color: var(--text-secondary);
+  transition: all var(--transition-fast);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  outline: none;
+}
+
+.btn-action-edit:hover {
+  background: rgba(168, 85, 247, 0.08);
+  border-color: rgba(168, 85, 247, 0.3);
+  color: #d8b4fe;
+}
+
+.btn-action-disable:hover {
+  background: rgba(239, 68, 68, 0.08);
+  border-color: rgba(239, 68, 68, 0.3);
+  color: #f87171;
+}
+
+.btn-action-enable:hover {
+  background: rgba(16, 185, 129, 0.08);
+  border-color: rgba(16, 185, 129, 0.3);
+  color: #34d399;
+}
+
+.btn-action-delete:hover {
+  background: rgba(239, 68, 68, 0.15);
+  border-color: rgba(239, 68, 68, 0.4);
+  color: #f87171;
+}
+

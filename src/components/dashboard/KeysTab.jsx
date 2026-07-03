@@ -24,6 +24,7 @@ export default function KeysTab({
   handleClearCooldown,
   handleTriggerCooldown,
   handleDeleteKey,
+  handleActivateAllKeys,
   styles,
 }) {
   return (
@@ -34,9 +35,19 @@ export default function KeysTab({
           <p style={styles.tabSubtitle}>Manage Gemini tokens, limits, concurrency, and overrides.</p>
         </div>
         {isAdmin && !showKeyForm && (
-          <button onClick={() => setShowKeyForm(true)} className="btn btn-primary">
-            <Plus size={16} /> New Key
-          </button>
+          <div style={{ display: 'flex', gap: '12px' }}>
+            <button 
+              onClick={handleActivateAllKeys} 
+              className="btn btn-secondary"
+              style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '10px 16px', background: 'rgba(52, 211, 153, 0.06)', border: '1px solid rgba(52, 211, 153, 0.25)', color: '#34d399' }}
+              title="Activate all API keys in pool"
+            >
+              <Power size={15} /> Activate All Keys
+            </button>
+            <button onClick={() => setShowKeyForm(true)} className="btn btn-primary">
+              <Plus size={16} /> New Key
+            </button>
+          </div>
         )}
       </div>
 

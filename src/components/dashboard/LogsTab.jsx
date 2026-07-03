@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Check, Copy, FileText } from 'lucide-react';
+import { X, Check, Copy } from 'lucide-react';
 
 export default function LogsTab({ logsList, handleCopyToClipboard, copiedId, styles }) {
   const [selectedLog, setSelectedLog] = useState(null);
